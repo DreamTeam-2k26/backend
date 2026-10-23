@@ -26,7 +26,12 @@ from .invite import (
 )
 from .membership import MembershipCreateUpdateSerializer, MembershipListSerializer, MembershipRetrieveSerializer
 from .permission import PermissionSerializer
-from .project import ProjectCreateUpdateSerializer, ProjectListSerializer, ProjectRetrieveSerializer
+from .project import (
+    ProjectCreateUpdateSerializer,
+    ProjectDashboardSerializer,
+    ProjectListSerializer,
+    ProjectRetrieveSerializer,
+)
 from .support_link import (
     SupportLinkCreateUpdateSerializer,
     SupportLinkListSerializer,

@@ -1,9 +1,16 @@
 from django.db import transaction
-from rest_framework.serializers import CharField, IntegerField, ModelSerializer, SerializerMethodField
+from rest_framework.serializers import CharField, IntegerField, ModelSerializer, Serializer, SerializerMethodField
 
 from core.models import Column, Membership, Project
 
 # `role` = papel do usuário logado no projeto, anotado no get_queryset da ProjectViewSet.
+
+
+def progress_percent(done, total):
+    """Progresso do projeto: tarefas em colunas done / total * 100, arredondado; 0 quando não há tarefas."""
+    if not total:
+        return 0
+    return round(done * 100 / total)
 
 
 class ProjectMembershipSerializer(ModelSerializer):
@@ -37,9 +44,25 @@ class ProjectListSerializer(ModelSerializer):
 
     def get_progress(self, project) -> int:
         """Percentual (0 a 100) de tarefas concluídas; projeto sem tarefas é 0."""
-        if not project.total_tasks:
-            return 0
-        return round(project.done_tasks * 100 / project.total_tasks)
+        return progress_percent(project.done_tasks, project.total_tasks)
+
+
+class ProjectDashboardSerializer(Serializer):
+    """Visão Geral do projeto. Recebe o dicionário do aggregate feito na action dashboard da ProjectViewSet."""
+
+    total_tasks = IntegerField()
+    done_tasks = IntegerField(help_text='Tarefas em colunas de categoria done.')
+    pending_tasks = SerializerMethodField(help_text='Tarefas fora de colunas done.')
+    todo_tasks = IntegerField()
+    in_progress_tasks = IntegerField()
+    overdue_tasks = IntegerField(help_text='Prazo anterior a hoje e fora de colunas done.')
+    progress = SerializerMethodField(help_text='Percentual (0 a 100) de tarefas concluídas; 0 sem tarefas.')
+
+    def get_pending_tasks(self, stats) -> int:
+        return stats['total_tasks'] - stats['done_tasks']
+
+    def get_progress(self, stats) -> int:
+        return progress_percent(stats['done_tasks'], stats['total_tasks'])
 
 
 class ProjectRetrieveSerializer(ModelSerializer):
