@@ -1,9 +1,9 @@
-from django.db.models import OuterRef, Prefetch, Subquery
+from django.db.models import Count, OuterRef, Prefetch, Q, Subquery
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import ModelViewSet
 
-from core.models import Membership, Project
+from core.models import Column, Membership, Project
 from core.permissions import ProjectRolePermission
 from core.serializers import ProjectCreateUpdateSerializer, ProjectListSerializer, ProjectRetrieveSerializer
 
@@ -34,7 +34,11 @@ class ProjectViewSet(ModelViewSet):
         if self.action == 'list':
             # Participantes do card (id e foto) em 1 consulta para todos os projetos da página, não 1 por projeto.
             participants = Membership.objects.select_related('user__profile_picture').order_by('joined_at', 'id')
-            queryset = queryset.prefetch_related(Prefetch('memberships', queryset=participants))
+            queryset = queryset.prefetch_related(Prefetch('memberships', queryset=participants)).annotate(
+                # Para o progress: concluída = tarefa em coluna de categoria done (inclui colunas personalizadas).
+                total_tasks=Count('tasks', distinct=True),
+                done_tasks=Count('tasks', filter=Q(tasks__column__category=Column.Category.DONE), distinct=True),
+            )
         return queryset
 
     def get_serializer_class(self):

@@ -22,17 +22,24 @@ class ProjectMembershipSerializer(ModelSerializer):
 
 
 class ProjectListSerializer(ModelSerializer):
-    # memberships vem pré-carregado pelo get_queryset da ProjectViewSet (sem consulta extra por projeto).
+    # memberships, total_tasks e done_tasks vêm do get_queryset da ProjectViewSet (sem consulta extra por projeto).
     role = CharField(read_only=True)
     total_memberships = SerializerMethodField()
     memberships = ProjectMembershipSerializer(many=True, read_only=True)
+    progress = SerializerMethodField()
 
     class Meta:
         model = Project
-        fields = ('id', 'name', 'description', 'total_memberships', 'memberships', 'role', 'updated_at')
+        fields = ('id', 'name', 'description', 'total_memberships', 'memberships', 'progress', 'role', 'updated_at')
 
     def get_total_memberships(self, project) -> int:
         return len(project.memberships.all())
+
+    def get_progress(self, project) -> int:
+        """Percentual (0 a 100) de tarefas concluídas; projeto sem tarefas é 0."""
+        if not project.total_tasks:
+            return 0
+        return round(project.done_tasks * 100 / project.total_tasks)
 
 
 class ProjectRetrieveSerializer(ModelSerializer):

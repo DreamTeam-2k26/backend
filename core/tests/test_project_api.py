@@ -6,7 +6,7 @@ from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APIClient, APITestCase
 
 from chat.tests.helpers import JPEG_BYTES, TempMediaMixin
-from core.models import Membership, Project
+from core.models import Column, Membership, Project, Task
 from uploader.models import Image
 
 from .helpers import PROJECTS, client_for, make_project, make_user, project_url
@@ -97,7 +97,7 @@ class ListAndDetailTests(ProjectAPITestCase):
 
         self.assertEqual(
             set(response.data['results'][0]),
-            {'id', 'name', 'description', 'total_memberships', 'memberships', 'role', 'updated_at'},
+            {'id', 'name', 'description', 'total_memberships', 'memberships', 'progress', 'role', 'updated_at'},
         )
 
     def test_list_returns_participants_with_user_id_and_picture(self):
@@ -240,3 +240,62 @@ class ProjectCardParticipantsTests(TempMediaMixin, APITestCase):
             client_for(self.owner).get(PROJECTS)
 
         self.assertEqual(len(five_projects), len(one_project))
+
+
+class ProjectProgressTests(APITestCase):
+    def setUp(self):
+        self.owner = make_user('dono-progresso')
+        self.project = make_project(self.owner)
+        self.todo, self.doing, self.done = self.project.columns.order_by('position')
+
+    def add_tasks(self, column, amount, project=None):
+        for index in range(amount):
+            Task.objects.create(project=project or self.project, column=column, title=f'{column.name} {index}')
+
+    def progress(self):
+        cards = client_for(self.owner).get(PROJECTS).data['results']
+        return next(card['progress'] for card in cards if card['id'] == self.project.pk)
+
+    def test_project_without_tasks_is_zero(self):
+        self.assertEqual(self.progress(), 0)
+
+    def test_percentage_of_tasks_in_done_columns(self):
+        self.add_tasks(self.todo, 2)
+        self.add_tasks(self.doing, 1)
+        self.add_tasks(self.done, 1)
+
+        self.assertEqual(self.progress(), 25)
+
+    def test_percentage_is_rounded(self):
+        self.add_tasks(self.todo, 2)
+        self.add_tasks(self.done, 1)
+
+        self.assertEqual(self.progress(), 33)
+
+    def test_custom_done_column_counts_as_done(self):
+        extra_done = Column.objects.create(project=self.project, name='Entregue', category='done', position=3)
+        self.add_tasks(self.todo, 1)
+        self.add_tasks(extra_done, 1)
+
+        self.assertEqual(self.progress(), 50)
+
+    def test_all_done_is_one_hundred(self):
+        self.add_tasks(self.done, 3)
+
+        self.assertEqual(self.progress(), 100)
+
+    def test_tasks_of_other_projects_do_not_count(self):
+        other = make_project(self.owner, name='Outro')
+        other_todo, _, other_done = other.columns.order_by('position')
+        self.add_tasks(other_done, 5, project=other)
+        self.add_tasks(self.todo, 1)
+
+        self.assertEqual(self.progress(), 0)
+
+    def test_many_participants_do_not_inflate_counts(self):
+        for index in range(3):
+            Membership.objects.create(project=self.project, user=make_user(f'part-{index}'))
+        self.add_tasks(self.todo, 1)
+        self.add_tasks(self.done, 1)
+
+        self.assertEqual(self.progress(), 50)
