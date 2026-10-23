@@ -1,9 +1,7 @@
-from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from chat.models import Membership
-from chat.models.room import ROOM_NAME_MAX
-from core.serializers.user import OwnImageField
+from core.models import Membership as ProjectMembership
 
 from .message import MessageSerializer
 from .user import ChatUserSerializer
@@ -21,6 +19,7 @@ class RoomSerializer(serializers.Serializer):
     member_count = serializers.IntegerField(read_only=True)
     unread = serializers.IntegerField(read_only=True)
     is_admin = serializers.BooleanField(read_only=True)
+    project = serializers.IntegerField(source='project_id', read_only=True)
     last_message = serializers.SerializerMethodField()
 
     def get_image(self, room) -> str | None:
@@ -46,6 +45,7 @@ class RoomDetailSerializer(RoomSerializer):
             .select_related('user__profile_picture', 'user__chat_presence')
             .order_by('-is_admin', 'user__email')
         )
+        roles = dict(ProjectMembership.objects.filter(project_id=room.project_id).values_list('user_id', 'role'))
         data = []
 
         for membership in memberships:
@@ -53,6 +53,8 @@ class RoomDetailSerializer(RoomSerializer):
             data.append({
                 'user': ChatUserSerializer(membership.user).data,
                 'is_admin': membership.is_admin,
+                # Papel no projeto (owner, admin ou member); nulo nas salas avulsas antigas.
+                'role': roles.get(membership.user_id),
                 'joined_at': serializers.DateTimeField().to_representation(membership.joined_at),
                 'online': bool(presence and presence.is_online),
                 'last_seen': (
@@ -63,36 +65,3 @@ class RoomDetailSerializer(RoomSerializer):
             })
 
         return data
-
-
-class ActiveUsersField(serializers.PrimaryKeyRelatedField):
-    """Lista de ids de usuários ativos (ids inexistentes ou inativos viram erro de validação)."""
-
-    def __init__(self, **kwargs):
-        # queryset explícito (não só get_queryset) para o drf-spectacular descobrir o model do campo;
-        # o DRF chama .all() a cada uso, então o filtro de ativos continua valendo por requisição.
-        kwargs.setdefault('queryset', get_user_model().objects.filter(is_active=True))
-        super().__init__(**kwargs)
-
-
-class RoomCreateSerializer(serializers.Serializer):
-    name = serializers.CharField(max_length=ROOM_NAME_MAX)
-    members = ActiveUsersField(many=True, required=False, default=list)
-    image_attachment_key = OwnImageField(
-        source='image', slug_field='attachment_key', required=False, allow_null=True
-    )
-
-
-class RoomUpdateSerializer(serializers.Serializer):
-    name = serializers.CharField(max_length=ROOM_NAME_MAX, required=False)
-    image_attachment_key = OwnImageField(
-        source='image', slug_field='attachment_key', required=False, allow_null=True
-    )
-
-
-class RoomMembersSerializer(serializers.Serializer):
-    users = ActiveUsersField(many=True, allow_empty=False)
-
-
-class RoomAdminSerializer(serializers.Serializer):
-    is_admin = serializers.BooleanField()

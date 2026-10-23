@@ -27,7 +27,7 @@ class RoomServiceTests(TestCase):
         self.assertEqual(set(services.member_ids(room)), {self.ana.pk, self.bia.pk})
 
     def test_room_name_is_required_and_limited(self):
-        for bad in ('', '   ', None, 'x' * 65, 123):
+        for bad in ('', '   ', None, 'x' * 101, 123):
             with self.subTest(name=bad), self.assertRaises(ValidationError):
                 services.create_room(self.ana, bad)
         self.assertEqual(Room.objects.count(), 0)

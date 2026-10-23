@@ -1,13 +1,24 @@
 from django.conf import settings
 from django.db import models
 
-ROOM_NAME_MAX = 64
+ROOM_NAME_MAX = 100  # igual ao limite do nome do projeto (core.Project.name)
 
 
 class Room(models.Model):
-    """Sala coletiva de conversa. Não existem conversas privadas 1:1: toda sala tem nome e participantes explícitos."""
+    """Sala de conversa de um projeto. Não existem conversas privadas 1:1.
+
+    Cada projeto tem exatamente uma sala (`project`); nome e participantes seguem o projeto (ver
+    chat/project_rooms.py). `project` fica nulo só nas salas avulsas antigas, criadas antes dos projetos.
+    """
 
     name = models.CharField(max_length=ROOM_NAME_MAX)
+    project = models.OneToOneField(
+        'core.Project',
+        related_name='chat_room',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+    )
     # Mesmo padrão da foto de perfil: a imagem é enviada ao uploader e vinculada pelo attachment_key.
     image = models.ForeignKey(
         'uploader.Image',

@@ -13,10 +13,12 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.db.models import Count, DateTimeField, F, IntegerField, OuterRef, Subquery, Value
+from django.db.models import Count, DateTimeField, F, IntegerField, OuterRef, Q, Subquery, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
+from core.models import Invite
+from core.models import Membership as ProjectMembership
 from uploader.helpers.files import get_content_type
 
 from .models import Membership, Message, Room
@@ -182,14 +184,15 @@ def leave_room(user, room):
         first = remaining.first()
 
         if first is None:
-            _delete_room_files(room)
+            delete_room_files(room)
             room.delete()
         elif not remaining.filter(is_admin=True).exists():
             first.is_admin = True
             first.save(update_fields=['is_admin'])
 
 
-def _delete_room_files(room):
+def delete_room_files(room):
+    """Apaga do storage os arquivos das mensagens da sala (usado ao apagar a sala ou o projeto)."""
     for message in room.messages.exclude(file='').exclude(file__isnull=True):
         _remove_file(message)
 
@@ -202,10 +205,10 @@ def _remove_file(message):
         logger.exception('Falha ao remover o arquivo da mensagem %s', message.pk)
 
 
-def rooms_for(user, only=None):
+def rooms_for(user, only=None, project_id=None):
     """Salas do usuário, da mais recente para a mais antiga, anotadas com
     .unread, .last_message, .member_count e .is_admin (número de queries constante).
-    `only` restringe a uma sala (usado por room_summary)."""
+    `only` restringe a uma sala (usado por room_summary); `project_id`, à sala de um projeto."""
     mine = Membership.objects.filter(room=OuterRef('pk'), user=user)
     last_read = mine.values('last_read_at')[:1]
     unread = (
@@ -221,6 +224,7 @@ def rooms_for(user, only=None):
 
     rooms = list(
         Room.objects.filter(memberships__user=user, **({'pk': only.pk} if only is not None else {}))
+        .filter(**({'project_id': project_id} if project_id is not None else {}))
         .select_related('image')
         .annotate(
             my_last_read=Coalesce(
@@ -432,8 +436,8 @@ def message_page(room, before_id=None, size=PAGE_SIZE):
     return page, has_more
 
 
-def search_users(requester, term, exclude_room_id=None):
-    """Usuários ativos cujo e-mail contém o termo (mínimo de 2 caracteres), exceto o próprio solicitante."""
+def search_users(requester, term, exclude_room_id=None, exclude_project_id=None):
+    """Usuários ativos cujo nome ou e-mail contém o termo (mínimo de 2 caracteres), exceto o próprio solicitante."""
     term = (term or '').strip()
 
     if len(term) < 2:  # noqa: PLR2004
@@ -441,7 +445,7 @@ def search_users(requester, term, exclude_room_id=None):
 
     queryset = (
         get_user_model()
-        .objects.filter(is_active=True, email__icontains=term)
+        .objects.filter(Q(email__icontains=term) | Q(name__icontains=term), is_active=True)
         .exclude(pk=requester.pk)
         .select_related('profile_picture')
         .order_by('email')
@@ -450,5 +454,13 @@ def search_users(requester, term, exclude_room_id=None):
     # Só filtra por participantes de uma sala da qual o próprio solicitante participa.
     if exclude_room_id is not None and get_room_for(requester, exclude_room_id) is not None:
         queryset = queryset.exclude(chat_memberships__room_id=exclude_room_id)
+
+    # Idem para um projeto: some quem já participa dele ou já tem convite pendente (para montar convites).
+    if exclude_project_id is not None and ProjectMembership.objects.filter(
+        project_id=exclude_project_id, user=requester
+    ).exists():
+        queryset = queryset.exclude(project_memberships__project_id=exclude_project_id).exclude(
+            received_invites__project_id=exclude_project_id, received_invites__status=Invite.Status.PENDING
+        )
 
     return queryset
