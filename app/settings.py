@@ -177,8 +177,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Configurações do DRF e drf-spectacular (OpenAPI/Swagger)
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'Hackathon API',
-    'DESCRIPTION': 'API para o projeto <descreva aqui seu projeto>.',
+    'TITLE': 'Fluxo API',
+    'DESCRIPTION': 'API do Fluxo, plataforma colaborativa de gerenciamento de projetos e tarefas.',
     'VERSION': '1.0.0',
 }
 

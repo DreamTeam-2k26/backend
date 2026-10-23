@@ -1,7 +1,7 @@
 [project]
-name = "template-django-pdm"
+name = "fluxo-backend"
 version = "0.1.0"
-description = "Template Django + DRF + Channels gerenciado com PDM para os projetos do Hackathon 2026"
+description = "Backend do Fluxo (Django + DRF + Channels, gerenciado com PDM)"
 authors = [
     {name = "AndreRicardoSc",email = "schultzandrericardo@gmail.com"},
 ]

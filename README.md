@@ -1,6 +1,6 @@
-# Template Django + PDM — Hackathon 2026
+# Fluxo — Backend
 
-API REST com Django, Django REST Framework, JWT, Channels (WebSocket) e upload de arquivos, gerenciada com [PDM](https://pdm-project.org).
+API REST do **Fluxo** com Django, Django REST Framework, JWT, Channels (WebSocket) e upload de arquivos, gerenciada com [PDM](https://pdm-project.org).
 
 ## Requisitos
 
