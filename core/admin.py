@@ -11,6 +11,7 @@ from core.models import (
     ChecklistItem,
     Column,
     Comment,
+    Folder,
     Group,
     Invite,
     Meeting,
@@ -214,3 +215,11 @@ class MeetingAdmin(admin.ModelAdmin):
     search_fields = ('title', 'description', 'project__name')
     ordering = ('-starts_at',)
     raw_id_fields = ('project', 'created_by')
+
+
+@admin.register(Folder)
+class FolderAdmin(admin.ModelAdmin):
+    list_display = ('name', 'project', 'parent', 'created_by', 'created_at')
+    search_fields = ('name', 'project__name')
+    ordering = ('project', 'name')
+    raw_id_fields = ('project', 'parent', 'created_by')

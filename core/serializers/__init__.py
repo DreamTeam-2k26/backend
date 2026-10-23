@@ -11,6 +11,7 @@ from .column import (
     ColumnRetrieveSerializer,
 )
 from .comment import CommentCreateUpdateSerializer, CommentListSerializer, CommentRetrieveSerializer
+from .folder import FolderCreateUpdateSerializer, FolderListSerializer, FolderRetrieveSerializer
 from .group import GroupSerializer, GroupUsersSerializer
 from .invite import (
     InviteAcceptSerializer,
