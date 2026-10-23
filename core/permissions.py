@@ -193,6 +193,19 @@ class CommentPermission(BasePermission):
         return True
 
 
+class SupportLinkPermission(BasePermission):
+    """Links de apoio: qualquer participante do projeto (dono, administrador ou membro) faz tudo.
+
+    Usa o ``my_role`` que a SupportLinkViewSet anota em cada link (papel do usuário logado no projeto).
+    Criar não tem objeto: o serializer exige participação no projeto informado (404).
+    """
+
+    message = 'Só participantes do projeto podem operar os links de apoio.'
+
+    def has_object_permission(self, request, view, obj):
+        return obj.my_role is not None
+
+
 class IsSuperuser(BasePermission):
     """Restringe a ação a superusuários (operações que concedem privilégios)."""
 
