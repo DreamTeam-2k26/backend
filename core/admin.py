@@ -7,7 +7,7 @@ from django.contrib.auth.models import Group as AuthGroup
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
-from core.models import ChecklistItem, Column, Group, Invite, Membership, Project, Task, User
+from core.models import ChecklistItem, Column, Comment, Group, Invite, Membership, Project, Task, User
 
 # O Group nativo do Django sai do admin para não haver dois painéis de grupos.
 try:
@@ -176,3 +176,12 @@ class ChecklistItemAdmin(admin.ModelAdmin):
     search_fields = ('text', 'task__title')
     ordering = ('task', 'position')
     raw_id_fields = ('task',)
+
+
+@admin.register(Comment)
+class CommentAdmin(admin.ModelAdmin):
+    list_display = ('task', 'author', 'created_at', 'updated_at')
+    search_fields = ('body', 'task__title', 'author__email')
+    ordering = ('-created_at',)
+    raw_id_fields = ('task', 'author')
+    readonly_fields = ('created_at', 'updated_at')

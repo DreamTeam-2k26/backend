@@ -10,6 +10,7 @@ from .column import (
     ColumnReorderSerializer,
     ColumnRetrieveSerializer,
 )
+from .comment import CommentCreateUpdateSerializer, CommentListSerializer, CommentRetrieveSerializer
 from .group import GroupSerializer, GroupUsersSerializer
 from .invite import (
     InviteAcceptSerializer,
