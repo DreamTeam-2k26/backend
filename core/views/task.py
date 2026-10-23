@@ -1,12 +1,20 @@
 from django.db.models import OuterRef, Subquery
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework import status
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from core.models import Membership, Task
 from core.permissions import TaskPermission
-from core.serializers import TaskCreateUpdateSerializer, TaskListSerializer, TaskRetrieveSerializer
+from core.serializers import (
+    TaskCreateUpdateSerializer,
+    TaskListSerializer,
+    TaskMoveSerializer,
+    TaskRetrieveSerializer,
+)
 
 
 @extend_schema_view(
@@ -51,3 +59,19 @@ class TaskViewSet(ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+    @extend_schema(
+        summary='Mover/reordenar tarefa (drag-and-drop; qualquer participante)',
+        description='Leva a tarefa para column_id na posição pedida (posição além do fim vai para o fim). '
+        'Responde com as tarefas das colunas afetadas, já na ordem nova.',
+        request=TaskMoveSerializer,
+        responses={200: TaskListSerializer(many=True)},
+    )
+    @action(detail=True, methods=['post'])
+    def move(self, request, pk=None):
+        serializer = TaskMoveSerializer(
+            data=request.data, context={**self.get_serializer_context(), 'task': self.get_object()}
+        )
+        serializer.is_valid(raise_exception=True)
+        task = serializer.save()
+        return Response(TaskListSerializer(serializer.board(task), many=True).data, status=status.HTTP_200_OK)
