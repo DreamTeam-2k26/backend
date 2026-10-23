@@ -104,3 +104,18 @@ Uma conexão por aba. Sem token válido a conexão é aceita e fechada com o có
 Se o servidor for encerrado de forma abrupta, rode `python manage.py reset_chat_presence` para zerar os contadores de presença.
 
 Limitações conhecidas: sem rate limiting; o token expirado não derruba um socket já aberto; anexos aceitam qualquer tipo até `CHAT_MAX_UPLOAD_MB`; ainda não há entidade de projeto, então as salas são independentes.
+
+## Perfil do usuário
+
+`POST /api/register/` exige `email`, `password` e `name` (1 a 150 caracteres, sem aceitar apenas espaços).
+A migração atribui `Usuário` aos cadastros anteriores; novos cadastros precisam informar o nome.
+
+Com o JWT existente, `GET /api/users/me/` retorna `id`, `email`, `name` e `profile_picture` (objeto ou `null`).
+`PATCH /api/users/me/` atualiza parcialmente o perfil; `PUT` exige `email` e `name`.
+Também continua disponível a atualização em `/api/users/{id}/` do próprio usuário.
+Os campos administrativos ficam restritos às operações de gestão autorizadas.
+
+A foto é opcional: após o cadastro, envie uma imagem pelo uploader autenticado e informe
+`profile_picture_attachment_key` no perfil. A imagem precisa existir e pertencer ao usuário.
+Envie `null` nesse campo para remover a associação sem apagar o upload. O cadastro sem foto
+não exige upload; login por e-mail, refresh e verify mantêm as rotas e os contratos existentes.

@@ -36,6 +36,7 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractBaseUser, PermissionsMixin):
+    name = models.CharField(max_length=150, verbose_name=_('nome de exibição'))
     email = models.EmailField(max_length=255, unique=True, verbose_name=_('email'), help_text=_('Email'))
     profile_picture = models.ForeignKey(
         Image,

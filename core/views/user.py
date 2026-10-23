@@ -29,14 +29,20 @@ class UserViewSet(ModelViewSet):
 
     @extend_schema(
         summary='Dados do usuário autenticado',
-        description='Retorna os dados do usuário autenticado.',
+        description='Consulta ou atualiza o perfil do usuário autenticado. PATCH permite atualização parcial.',
         responses={200: UserSerializer, 401: None},
     )
-    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    @action(detail=False, methods=['get', 'patch', 'put'], permission_classes=[IsAuthenticated])
     def me(self, request):
-        """Retorna os dados do usuário autenticado."""
+        """Consulta e atualiza o perfil sem exigir um novo login."""
         user = request.user
-        serializer = UserSerializer(user, context=self.get_serializer_context())
+        context = {**self.get_serializer_context(), 'profile_only': True}
+        if request.method in {'PATCH', 'PUT'}:
+            serializer = UserSerializer(user, data=request.data, partial=request.method == 'PATCH', context=context)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+        else:
+            serializer = UserSerializer(user, context=context)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def _check_user_permission(self, permission, *, allow_self):

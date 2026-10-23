@@ -24,7 +24,7 @@ class UserCreationForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ('email',)
+        fields = ('email', 'name')
 
     def clean_password2(self):
         password1 = self.cleaned_data.get('password1')
@@ -56,6 +56,7 @@ class UserChangeForm(forms.ModelForm):
         model = User
         fields = (
             'email',
+            'name',
             'password',
             'is_active',
             'is_staff',
@@ -70,19 +71,19 @@ class UserAdmin(BaseUserAdmin):
     form = UserChangeForm
     add_form = UserCreationForm
 
-    list_display = ('email', 'is_active', 'is_staff', 'is_superuser')
+    list_display = ('email', 'name', 'is_active', 'is_staff', 'is_superuser')
     list_filter = ('is_active', 'is_staff', 'is_superuser', 'groups')
-    search_fields = ('email',)
+    search_fields = ('email', 'name')
     ordering = ('email',)
     filter_horizontal = ('groups', 'user_permissions')
 
     fieldsets = (
-        (None, {'fields': ('email', 'password')}),
+        (None, {'fields': ('email', 'name', 'password')}),
         ('Foto de perfil', {'fields': ('profile_picture',)}),
         ('Permissões', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Datas importantes', {'fields': ('last_login',)}),
     )
-    add_fieldsets = ((None, {'classes': ('wide',), 'fields': ('email', 'password1', 'password2')}),)
+    add_fieldsets = ((None, {'classes': ('wide',), 'fields': ('email', 'name', 'password1', 'password2')}),)
 
     def get_readonly_fields(self, request, obj=None):
         """Conceder privilégio é exclusivo de superusuário, também no admin."""
