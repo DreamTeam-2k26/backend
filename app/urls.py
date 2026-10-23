@@ -15,6 +15,7 @@ from rest_framework_simplejwt.views import (
 )
 
 from core.views import (
+    ChecklistItemViewSet,
     ColumnViewSet,
     GroupTokenObtainPairView,
     GroupViewSet,
@@ -37,6 +38,7 @@ router.register(r'memberships', MembershipViewSet, basename='memberships')
 router.register(r'invites', InviteViewSet, basename='invites')
 router.register(r'columns', ColumnViewSet, basename='columns')
 router.register(r'tasks', TaskViewSet, basename='tasks')
+router.register(r'checklist-items', ChecklistItemViewSet, basename='checklist-items')
 
 urlpatterns = [
     path('', lambda request: redirect('api/', permanent=True)),

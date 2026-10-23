@@ -189,7 +189,7 @@ class ReorderColumnsTests(ColumnAPITestCase):
     def test_must_list_every_column_of_project_once(self):
         cases = {
             'faltando': [self.done.pk, self.todo.pk],
-            'repetida': [self.done.pk, self.todo.pk, self.todo.pk],
+            'repetida': [self.done.pk, self.todo.pk, self.doing.pk, self.todo.pk],
             'de outro projeto': [self.done.pk, self.todo.pk, self.other_project.columns.first().pk],
         }
         for label, ids in cases.items():
