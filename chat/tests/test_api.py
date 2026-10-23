@@ -61,8 +61,9 @@ class AuthenticationTests(ChatAPITestCase):
         self.assertEqual(client.get(ROOMS).status_code, 200)
 
     def test_regular_user_without_model_permissions_can_use_chat(self):
-        # Usuário recém-criado não tem nenhuma permissão de modelo; o chat autoriza por participação.
-        self.assertFalse(self.caio.get_all_permissions())
+        # Usuário recém-criado não tem permissão de modelo do chat (o grupo padrão só dá o básico, como enviar
+        # foto); o chat autoriza por participação.
+        self.assertFalse({perm for perm in self.caio.get_all_permissions() if perm.startswith('chat.')})
         response = self.as_(self.caio).post(ROOMS, {'name': 'Minha sala'}, format='json')
         self.assertEqual(response.status_code, 201)
 
