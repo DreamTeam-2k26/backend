@@ -1,0 +1,52 @@
+[project]
+name = "template-django-pdm"
+version = "0.1.0"
+description = "Template Django + DRF + Channels gerenciado com PDM para os projetos do Hackathon 2026"
+authors = [
+    {name = "AndreRicardoSc",email = "schultzandrericardo@gmail.com"},
+]
+dependencies = ["django>=6.1.2", "djangorestframework>=3.18.3", "djangorestframework-simplejwt>=5.5.1", "django-cors-headers>=4.9.0", "daphne>=4.2.3", "django-cloudinary-storage>=0.3.0", "cloudinary>=1.46.3", "channels>=4.3.2", "django-extensions>=4.1", "django-filter>=26.2", "drf-spectacular>=0.30.0", "python-dotenv>=1.2.4", "dj-database-url>=3.1.2", "python-magic>=0.4.27", "python-magic-bin>=0.4.14; sys_platform == 'win32'", "whitenoise>=6.12.0", "pillow>=13.0.0", "channels-redis>=4.2"]
+requires-python = "==3.14.*"
+readme = "README.md"
+license = {text = "MIT"}
+
+[tool.pdm.scripts]
+dev = "python manage.py runserver"
+serve = "daphne -b 0.0.0.0 -p 8000 app.asgi:application"
+createsuperuser = "python manage.py createsuperuser"
+makemigrations = "python manage.py makemigrations"
+migrate = "python manage.py migrate"
+shell = "python manage.py shell"
+shellp = "python manage.py shell_plus"
+test = "python manage.py test"
+loaddata = "python manage.py loaddata"
+dumpdata = "python manage.py dumpdata --indent 2"
+check = "ruff check"
+pre_format = "ruff check --fix"
+format = "ruff format"
+lint = {composite = ["ruff check", "ruff format --check"]}
+
+[tool.pdm]
+distribution = false
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ['migrations', '__init__.py', 'manage.py']
+
+[tool.ruff.lint]
+preview = true
+select = ['I', 'F', 'E', 'W', 'PL', 'PT']
+ignore = ["PLR6301"]
+
+[tool.ruff.lint.per-file-ignores]
+# Testes Django usam unittest (self.assert*), não pytest.
+"**/tests/*" = ["PT009", "PT027"]
+
+[tool.ruff.format]
+preview = true
+quote-style = 'single'
+
+[dependency-groups]
+dev = [
+    "ruff>=0.17.1",
+]

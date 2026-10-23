@@ -1,0 +1,14 @@
+*.py[codz]
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.pdm-python
+.env
+db.sqlite3
+staticfiles/
+.venv/
+media/
+requirements.txt
+.idea/
+.vscode/
