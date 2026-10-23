@@ -206,6 +206,22 @@ class SupportLinkPermission(BasePermission):
         return obj.my_role is not None
 
 
+class MeetingPermission(BasePermission):
+    """Reuniões: qualquer participante vê e agenda; editar ou excluir é de quem criou ou de dono/administrador
+    (inclusive reuniões cujo autor foi apagado do sistema).
+
+    Usa o ``my_role`` que a MeetingViewSet anota em cada reunião (papel do usuário logado no projeto).
+    """
+
+    message = 'Só quem agendou, o dono ou um administrador pode alterar esta reunião.'
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in SAFE_METHODS:
+            return True
+        is_creator = obj.created_by_id is not None and obj.created_by_id == request.user.pk
+        return is_creator or obj.my_role in {Membership.Role.OWNER, Membership.Role.ADMIN}
+
+
 class IsSuperuser(BasePermission):
     """Restringe a ação a superusuários (operações que concedem privilégios)."""
 

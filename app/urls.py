@@ -21,6 +21,7 @@ from core.views import (
     GroupTokenObtainPairView,
     GroupViewSet,
     InviteViewSet,
+    MeetingViewSet,
     MembershipViewSet,
     PermissionViewSet,
     ProjectViewSet,
@@ -43,6 +44,7 @@ router.register(r'tasks', TaskViewSet, basename='tasks')
 router.register(r'checklist-items', ChecklistItemViewSet, basename='checklist-items')
 router.register(r'comments', CommentViewSet, basename='comments')
 router.register(r'support-links', SupportLinkViewSet, basename='support-links')
+router.register(r'meetings', MeetingViewSet, basename='meetings')
 
 urlpatterns = [
     path('', lambda request: redirect('api/', permanent=True)),

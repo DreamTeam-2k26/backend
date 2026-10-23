@@ -3,6 +3,7 @@ from .column import ColumnViewSet
 from .comment import CommentViewSet
 from .group import GroupViewSet
 from .invite import InviteViewSet
+from .meeting import MeetingViewSet
 from .membership import MembershipViewSet
 from .permission import PermissionViewSet
 from .project import ProjectViewSet

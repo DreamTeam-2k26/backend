@@ -24,6 +24,7 @@ from .invite import (
     InviteRevokeSerializer,
     InviteUserSerializer,
 )
+from .meeting import MeetingCreateUpdateSerializer, MeetingListSerializer, MeetingRetrieveSerializer
 from .membership import MembershipCreateUpdateSerializer, MembershipListSerializer, MembershipRetrieveSerializer
 from .permission import PermissionSerializer
 from .project import (
