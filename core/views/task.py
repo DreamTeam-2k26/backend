@@ -46,6 +46,7 @@ class TaskViewSet(ModelViewSet):
             Task.objects
             .filter(project__in=my_projects)
             .annotate(my_role=Subquery(my_role))
+            .with_checklist_counts()
             .select_related('column', 'assignee', 'created_by')
             .order_by('project_id', 'column__position', 'position', 'id')
         )

@@ -1,3 +1,9 @@
+from .checklist_item import (
+    ChecklistItemCreateUpdateSerializer,
+    ChecklistItemListSerializer,
+    ChecklistItemReorderSerializer,
+    ChecklistItemRetrieveSerializer,
+)
 from .column import (
     ColumnCreateUpdateSerializer,
     ColumnListSerializer,

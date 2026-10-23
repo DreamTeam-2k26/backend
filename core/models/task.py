@@ -8,8 +8,21 @@ from .project import Project
 TASK_TITLE_MAX = 200
 
 
+class TaskQuerySet(models.QuerySet):
+    def with_checklist_counts(self):
+        """Anota checklist_total e checklist_done (itens concluídos) na mesma consulta das tarefas."""
+        return self.annotate(
+            checklist_total=models.Count('checklist_items', distinct=True),
+            checklist_done=models.Count(
+                'checklist_items', filter=models.Q(checklist_items__is_done=True), distinct=True
+            ),
+        )
+
+
 class Task(models.Model):
     """Tarefa do Kanban. Coluna e responsável são sempre do mesmo projeto (validado no serializer)."""
+
+    objects = TaskQuerySet.as_manager()
 
     class Priority(models.TextChoices):
         LOW = 'low', 'Baixa'

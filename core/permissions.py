@@ -159,6 +159,19 @@ class TaskPermission(BasePermission):
         return obj.my_role is not None
 
 
+class ChecklistItemPermission(BasePermission):
+    """Checklist: qualquer participante do projeto da tarefa (dono, administrador ou membro) faz tudo.
+
+    Usa o ``my_role`` que a ChecklistItemViewSet anota em cada item (papel do usuário logado no projeto).
+    Criar e reordenar não têm objeto: o serializer exige participação no projeto da tarefa (404).
+    """
+
+    message = 'Só participantes do projeto podem operar o checklist.'
+
+    def has_object_permission(self, request, view, obj):
+        return obj.my_role is not None
+
+
 class IsSuperuser(BasePermission):
     """Restringe a ação a superusuários (operações que concedem privilégios)."""
 

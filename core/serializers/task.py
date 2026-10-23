@@ -25,6 +25,8 @@ def end_of_column(column, exclude=None):
 class TaskListSerializer(ModelSerializer):
     assignee_name = CharField(source='assignee.name', read_only=True, default=None)
     is_overdue = BooleanField(read_only=True)
+    checklist_total = IntegerField(read_only=True)  # anotado por Task.objects.with_checklist_counts()
+    checklist_done = IntegerField(read_only=True)
 
     class Meta:
         model = Task
@@ -40,6 +42,8 @@ class TaskListSerializer(ModelSerializer):
             'position',
             'completed_at',
             'is_overdue',
+            'checklist_total',
+            'checklist_done',
         )
 
 
@@ -48,6 +52,8 @@ class TaskRetrieveSerializer(ModelSerializer):
     assignee_name = CharField(source='assignee.name', read_only=True, default=None)
     created_by_name = CharField(source='created_by.name', read_only=True, default=None)
     is_overdue = BooleanField(read_only=True)
+    checklist_total = IntegerField(read_only=True)  # anotado por Task.objects.with_checklist_counts()
+    checklist_done = IntegerField(read_only=True)
 
     class Meta:
         model = Task
@@ -65,6 +71,8 @@ class TaskRetrieveSerializer(ModelSerializer):
             'position',
             'completed_at',
             'is_overdue',
+            'checklist_total',
+            'checklist_done',
             'created_by',
             'created_by_name',
             'created_at',
@@ -178,6 +186,7 @@ class TaskMoveSerializer(Serializer):
         return (
             Task.objects
             .filter(column_id__in=column_ids)
+            .with_checklist_counts()
             .select_related('column', 'assignee')
             .order_by('column__position', 'position', 'id')
         )
