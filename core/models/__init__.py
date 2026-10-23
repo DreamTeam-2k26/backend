@@ -3,6 +3,7 @@ from .column import Column
 from .comment import Comment
 from .group import Group
 from .invite import Invite
+from .meeting import Meeting
 from .project import Membership, Project
 from .support_link import SupportLink
 from .task import Task
