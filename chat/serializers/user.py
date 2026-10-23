@@ -2,8 +2,17 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 
+# Valor padrão da migration de `core.User.name`: contas antigas ficaram com ele sem nunca terem escolhido um nome.
+DEFAULT_NAME = 'usuário'
+
+
 def display_name(user):
-    """Nome exibido no chat. O usuário oficial só tem e-mail, então usa a parte local dele."""
+    """Nome exibido no chat: o nome do perfil; sem ele (ou com o padrão da migration), a parte local do e-mail."""
+    name = (getattr(user, 'name', '') or '').strip()
+
+    if name and name.casefold() != DEFAULT_NAME:
+        return name
+
     email = getattr(user, 'email', '') or ''
 
     return email.split('@', maxsplit=1)[0] or 'Usuário'

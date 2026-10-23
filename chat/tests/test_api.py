@@ -4,7 +4,6 @@ from rest_framework.test import APIClient, APITestCase
 
 from chat import services
 from chat.models import Membership, Message, Room
-from uploader.models import Image
 
 from .helpers import HTML_BYTES, JPEG_BYTES, PDF_BYTES, TempMediaMixin, make_room, make_user
 
@@ -38,12 +37,8 @@ class AuthenticationTests(ChatAPITestCase):
         anonymous = APIClient()
         requests = [
             ('get', ROOMS),
-            ('post', ROOMS),
             ('get', room_url(self.room)),
-            ('patch', room_url(self.room)),
-            ('post', room_url(self.room, 'leave/')),
             ('post', room_url(self.room, 'read/')),
-            ('post', room_url(self.room, 'members/')),
             ('get', room_url(self.room, 'messages/')),
             ('post', room_url(self.room, 'messages/')),
             ('get', f'/api/chat/messages/{message.pk}/file/'),
@@ -64,8 +59,7 @@ class AuthenticationTests(ChatAPITestCase):
         # Usuário recém-criado não tem permissão de modelo do chat (o grupo padrão só dá o básico, como enviar
         # foto); o chat autoriza por participação.
         self.assertFalse({perm for perm in self.caio.get_all_permissions() if perm.startswith('chat.')})
-        response = self.as_(self.caio).post(ROOMS, {'name': 'Minha sala'}, format='json')
-        self.assertEqual(response.status_code, 201)
+        self.assertEqual(self.as_(self.caio).get(ROOMS).status_code, 200)
 
 
 class RoomAPITests(ChatAPITestCase):
@@ -84,31 +78,25 @@ class RoomAPITests(ChatAPITestCase):
         everything = self.as_(self.ana).get(ROOMS, {'page_size': 100}).data
         self.assertEqual(len(everything['results']), 13)
         room = everything['results'][0]
-        for key in ('id', 'name', 'image', 'member_count', 'unread', 'is_admin', 'last_message', 'last_message_at'):
+        for key in ('id', 'name', 'image', 'member_count', 'unread', 'is_admin', 'project', 'last_message', 'last_message_at'):
             self.assertIn(key, room)
 
-    def test_create_room_returns_detail_with_members(self):
-        response = self.as_(self.ana).post(ROOMS, {'name': 'Nova', 'members': [self.bia.pk, self.caio.pk]}, format='json')
-        self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data['member_count'], 3)
-        self.assertTrue(response.data['is_admin'])
-        members = {m['user']['id']: m for m in response.data['members']}
-        self.assertTrue(members[self.ana.pk]['is_admin'])
-        self.assertFalse(members[self.bia.pk]['is_admin'])
-        self.assertEqual(set(members[self.bia.pk]['user']), {'id', 'name', 'avatar'})  # sem e-mail
-        self.assertEqual(members[self.bia.pk]['user']['name'], 'bia')
-
-    def test_create_room_validation(self):
+    def test_rooms_are_not_created_or_managed_through_the_api(self):
         client = self.as_(self.ana)
-        for payload in ({}, {'name': ''}, {'name': '   '}, {'name': 'x' * 65}, {'name': 'ok', 'members': [999999]}):
-            with self.subTest(payload=payload):
-                self.assertEqual(client.post(ROOMS, payload, format='json').status_code, 400)
+        self.assertEqual(client.post(ROOMS, {'name': 'Nova'}, format='json').status_code, 405)
+        self.assertEqual(client.patch(room_url(self.room), {'name': 'Hack'}, format='json').status_code, 405)
+        self.assertEqual(client.delete(room_url(self.room)).status_code, 405)
+        for method, suffix in (
+            ('post', 'leave/'),
+            ('post', 'members/'),
+            ('delete', f'members/{self.bia.pk}/'),
+            ('post', f'members/{self.bia.pk}/admin/'),
+        ):
+            with self.subTest(method=method, suffix=suffix):
+                response = getattr(client, method)(room_url(self.room, suffix), {'users': [self.caio.pk]}, format='json')
+                self.assertEqual(response.status_code, 404)
+        self.assertEqual(Membership.objects.filter(room=self.room).count(), 2)
         self.assertEqual(Room.objects.count(), 1)
-
-    def test_cannot_create_room_with_inactive_member(self):
-        inactive = make_user('inativo', is_active=False)
-        response = self.as_(self.ana).post(ROOMS, {'name': 'X', 'members': [inactive.pk]}, format='json')
-        self.assertEqual(response.status_code, 400)
 
     def test_there_is_no_direct_message_endpoint(self):
         for url in ('/api/chat/conversations/', '/api/chat/direct/', '/api/chat/start/'):
@@ -119,12 +107,7 @@ class RoomAPITests(ChatAPITestCase):
         client = self.as_(self.caio)
         checks = [
             ('get', room_url(self.room)),
-            ('patch', room_url(self.room)),
-            ('post', room_url(self.room, 'leave/')),
             ('post', room_url(self.room, 'read/')),
-            ('post', room_url(self.room, 'members/')),
-            ('delete', room_url(self.room, f'members/{self.bia.pk}/')),
-            ('post', room_url(self.room, f'members/{self.bia.pk}/admin/')),
             ('get', room_url(self.room, 'messages/')),
             ('post', room_url(self.room, 'messages/')),
             ('get', f'/api/chat/messages/{message.pk}/file/'),
@@ -150,80 +133,6 @@ class RoomAPITests(ChatAPITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['name'], 'Projeto')
         self.assertFalse(response.data['is_admin'])
-
-    def test_admin_can_rename_but_member_cannot(self):
-        self.assertEqual(self.as_(self.bia).patch(room_url(self.room), {'name': 'Hack'}, format='json').status_code, 403)
-        response = self.as_(self.ana).patch(room_url(self.room), {'name': 'Renomeada'}, format='json')
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['name'], 'Renomeada')
-        self.assertEqual(self.as_(self.ana).patch(room_url(self.room), {'name': ''}, format='json').status_code, 400)
-
-    def test_room_image_uses_only_own_uploaded_image(self):
-        mine = Image.objects.create(file=SimpleUploadedFile('a.jpg', JPEG_BYTES), uploaded_by=self.ana)
-        theirs = Image.objects.create(file=SimpleUploadedFile('b.jpg', JPEG_BYTES), uploaded_by=self.bia)
-        client = self.as_(self.ana)
-        stolen = client.patch(room_url(self.room), {'image_attachment_key': str(theirs.attachment_key)}, format='json')
-        self.assertEqual(stolen.status_code, 400)
-        ok = client.patch(room_url(self.room), {'image_attachment_key': str(mine.attachment_key)}, format='json')
-        self.assertEqual(ok.status_code, 200)
-        self.assertTrue(ok.data['image'])
-        cleared = client.patch(room_url(self.room), {'image_attachment_key': None}, format='json')
-        self.assertIsNone(cleared.data['image'])
-
-    def test_admin_adds_and_removes_members(self):
-        client = self.as_(self.ana)
-        added = client.post(room_url(self.room, 'members/'), {'users': [self.caio.pk]}, format='json')
-        self.assertEqual(added.status_code, 200)
-        self.assertEqual(added.data['member_count'], 3)
-        self.assertEqual(self.as_(self.caio).get(room_url(self.room)).status_code, 200)
-        removed = client.delete(room_url(self.room, f'members/{self.caio.pk}/'))
-        self.assertEqual(removed.status_code, 200)
-        self.assertEqual(removed.data['member_count'], 2)
-        self.assertEqual(self.as_(self.caio).get(room_url(self.room)).status_code, 404)
-
-    def test_member_cannot_add_remove_or_promote(self):
-        client = self.as_(self.bia)
-        self.assertEqual(client.post(room_url(self.room, 'members/'), {'users': [self.caio.pk]}, format='json').status_code, 403)
-        self.assertEqual(client.delete(room_url(self.room, f'members/{self.ana.pk}/')).status_code, 403)
-        self.assertEqual(
-            client.post(room_url(self.room, f'members/{self.bia.pk}/admin/'), {'is_admin': True}, format='json').status_code,
-            403,
-        )
-        self.assertEqual(Membership.objects.filter(room=self.room).count(), 2)
-        self.assertFalse(Membership.objects.get(room=self.room, user=self.bia).is_admin)
-
-    def test_add_members_validation(self):
-        client = self.as_(self.ana)
-        for payload in ({}, {'users': []}, {'users': [999999]}, {'users': 'x'}):
-            with self.subTest(payload=payload):
-                self.assertEqual(client.post(room_url(self.room, 'members/'), payload, format='json').status_code, 400)
-
-    def test_promote_and_demote_admin(self):
-        client = self.as_(self.ana)
-        url = room_url(self.room, f'members/{self.bia.pk}/admin/')
-        self.assertEqual(client.post(url, {'is_admin': True}, format='json').status_code, 200)
-        self.assertTrue(Membership.objects.get(room=self.room, user=self.bia).is_admin)
-        self.assertEqual(client.post(url, {'is_admin': False}, format='json').status_code, 200)
-        only_admin = room_url(self.room, f'members/{self.ana.pk}/admin/')
-        response = client.post(only_admin, {'is_admin': False}, format='json')
-        self.assertEqual(response.status_code, 400)  # a sala precisa de um administrador
-
-    def test_remove_unknown_or_non_member_user(self):
-        client = self.as_(self.ana)
-        self.assertEqual(client.delete(room_url(self.room, 'members/999999/')).status_code, 404)
-        self.assertEqual(client.delete(room_url(self.room, f'members/{self.caio.pk}/')).status_code, 400)
-        self.assertEqual(client.delete(room_url(self.room, f'members/{self.ana.pk}/')).status_code, 400)  # use /leave/
-
-    def test_leave_room(self):
-        response = self.as_(self.bia).post(room_url(self.room, 'leave/'))
-        self.assertEqual(response.status_code, 204)
-        self.assertEqual(self.as_(self.bia).get(room_url(self.room)).status_code, 404)
-        self.assertEqual(self.as_(self.ana).get(room_url(self.room)).data['member_count'], 1)
-
-    def test_last_member_leaving_deletes_the_room(self):
-        self.as_(self.bia).post(room_url(self.room, 'leave/'))
-        self.as_(self.ana).post(room_url(self.room, 'leave/'))
-        self.assertFalse(Room.objects.filter(pk=self.room.pk).exists())
 
 
 class MessageAPITests(ChatAPITestCase):
@@ -328,7 +237,7 @@ class MessageAPITests(ChatAPITestCase):
         url = f'/api/chat/messages/{sent.data["id"]}/file/'
         self.assertEqual(self.as_(self.caio).get(url).status_code, 404)
         self.assertEqual(self.as_(self.bia).get(url).status_code, 200)
-        self.as_(self.ana).delete(room_url(self.room, f'members/{self.bia.pk}/'))
+        services.remove_member(self.ana, self.room, self.bia)
         self.assertEqual(self.as_(self.bia).get(url).status_code, 404)
 
     def test_deleted_or_missing_file_returns_404(self):

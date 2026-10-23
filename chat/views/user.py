@@ -18,24 +18,34 @@ class UserSearchView(ListAPIView):
     serializer_class = ChatUserSerializer
 
     @extend_schema(
-        summary='Buscar usuários por e-mail',
+        summary='Buscar usuários por nome ou e-mail',
         parameters=[
             OpenApiParameter('search', str, description='Mínimo de 2 caracteres.'),
             OpenApiParameter('exclude_room', int, description='Omite quem já participa desta sala (se você participa dela).'),
+            OpenApiParameter(
+                'exclude_project', int, description='Omite quem já participa deste projeto ou já foi convidado.'
+            ),
         ],
     )
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)
 
     def get_queryset(self):
-        exclude_room = self.request.query_params.get('exclude_room')
+        params = self.request.query_params
+        ids = {}
 
-        if exclude_room not in (None, ''):
+        for name in ('exclude_room', 'exclude_project'):
+            value = params.get(name)
+
+            if value in (None, ''):
+                ids[name] = None
+                continue
+
             try:
-                exclude_room = int(exclude_room)
+                ids[name] = int(value)
             except ValueError as error:
-                raise ValidationError({'exclude_room': 'Informe um id numérico.'}) from error
-        else:
-            exclude_room = None
+                raise ValidationError({name: 'Informe um id numérico.'}) from error
 
-        return services.search_users(self.request.user, self.request.query_params.get('search'), exclude_room)
+        return services.search_users(
+            self.request.user, params.get('search'), ids['exclude_room'], ids['exclude_project']
+        )

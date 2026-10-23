@@ -11,9 +11,9 @@ class MembershipInline(admin.TabularInline):
 
 @admin.register(Room)
 class RoomAdmin(admin.ModelAdmin):
-    list_display = ['name', 'created_by', 'created_at', 'last_message_at']
+    list_display = ['name', 'project', 'created_by', 'created_at', 'last_message_at']
     search_fields = ['name']
-    raw_id_fields = ['created_by', 'image']
+    raw_id_fields = ['created_by', 'image', 'project']
     inlines = [MembershipInline]
 
 
