@@ -27,6 +27,7 @@ class TaskListSerializer(ModelSerializer):
     is_overdue = BooleanField(read_only=True)
     checklist_total = IntegerField(read_only=True)  # anotado por Task.objects.with_checklist_counts()
     checklist_done = IntegerField(read_only=True)
+    comments_count = IntegerField(read_only=True)  # anotado por Task.objects.with_comment_count()
 
     class Meta:
         model = Task
@@ -35,6 +36,7 @@ class TaskListSerializer(ModelSerializer):
             'project',
             'column',
             'title',
+            'description',
             'priority',
             'assignee',
             'assignee_name',
@@ -44,6 +46,7 @@ class TaskListSerializer(ModelSerializer):
             'is_overdue',
             'checklist_total',
             'checklist_done',
+            'comments_count',
         )
 
 
@@ -54,6 +57,7 @@ class TaskRetrieveSerializer(ModelSerializer):
     is_overdue = BooleanField(read_only=True)
     checklist_total = IntegerField(read_only=True)  # anotado por Task.objects.with_checklist_counts()
     checklist_done = IntegerField(read_only=True)
+    comments_count = IntegerField(read_only=True)  # anotado por Task.objects.with_comment_count()
 
     class Meta:
         model = Task
@@ -73,6 +77,7 @@ class TaskRetrieveSerializer(ModelSerializer):
             'is_overdue',
             'checklist_total',
             'checklist_done',
+            'comments_count',
             'created_by',
             'created_by_name',
             'created_at',
@@ -187,6 +192,7 @@ class TaskMoveSerializer(Serializer):
             Task.objects
             .filter(column_id__in=column_ids)
             .with_checklist_counts()
+            .with_comment_count()
             .select_related('column', 'assignee')
             .order_by('column__position', 'position', 'id')
         )
