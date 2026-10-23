@@ -1,15 +1,18 @@
+from django.db import transaction
 from django.db.models import Max
 from django.utils import timezone
 from rest_framework.exceptions import NotFound
 from rest_framework.serializers import (
     BooleanField,
     CharField,
+    IntegerField,
     ModelSerializer,
     PrimaryKeyRelatedField,
+    Serializer,
     ValidationError,
 )
 
-from core.models import Membership, Task, User
+from core.models import Column, Membership, Task, User
 
 
 def end_of_column(column, exclude=None):
@@ -124,3 +127,57 @@ class TaskCreateUpdateSerializer(ModelSerializer):
         if column is not None and column != task.column and 'position' not in validated_data:
             validated_data['position'] = end_of_column(column, exclude=task)
         return super().update(task, validated_data)
+
+
+class TaskMoveSerializer(Serializer):
+    """Drag-and-drop: leva a tarefa (context['task']) para column_id na posição pedida.
+
+    Renumera 0, 1, 2... a coluna de destino e, se mudou de coluna, a de origem (fecha o buraco).
+    completed_at é ajustado pelo Task.save conforme a categoria da coluna de destino.
+    """
+
+    column_id = IntegerField()
+    position = IntegerField(min_value=0)
+
+    def validate_column_id(self, column_id):
+        column = Column.objects.filter(pk=column_id, project=self.context['task'].project).first()
+        if column is None:
+            raise ValidationError('A coluna precisa ser do mesmo projeto da tarefa.')
+        self.column = column
+        return column_id
+
+    @transaction.atomic
+    def create(self, validated_data):
+        task = Task.objects.select_for_update().select_related('column').get(pk=self.context['task'].pk)
+        column_ids = {task.column_id, self.column.pk}
+        # Trava as tarefas das colunas envolvidas: dois arrastos simultâneos não geram posições repetidas.
+        locked = Task.objects.select_for_update().filter(column_id__in=column_ids).order_by('position', 'id')
+        by_column = {pk: [] for pk in column_ids}
+        for item in locked:
+            if item.pk != task.pk:
+                by_column[item.column_id].append(item)
+
+        target = by_column[self.column.pk]
+        target.insert(min(validated_data['position'], len(target)), task)
+        task.column = self.column
+
+        changed = []
+        for tasks in by_column.values():
+            for position, item in enumerate(tasks):
+                if item.position != position:
+                    item.position = position
+                    if item is not task:
+                        changed.append(item)
+        Task.objects.bulk_update(changed, ['position'])
+        task.save()
+        return task
+
+    def board(self, task):
+        """Tarefas das colunas afetadas, na ordem nova, para o frontend redesenhar o quadro."""
+        column_ids = {self.context['task'].column_id, task.column_id}
+        return (
+            Task.objects
+            .filter(column_id__in=column_ids)
+            .select_related('column', 'assignee')
+            .order_by('column__position', 'position', 'id')
+        )
