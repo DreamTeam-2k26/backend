@@ -146,6 +146,19 @@ class ColumnPermission(BasePermission):
         return obj.my_role in {Membership.Role.OWNER, Membership.Role.ADMIN}
 
 
+class TaskPermission(BasePermission):
+    """Tarefas: qualquer participante do projeto (dono, administrador ou membro) faz tudo.
+
+    Usa o ``my_role`` que a TaskViewSet anota em cada tarefa (papel do usuário logado no projeto).
+    Criar não tem objeto: o serializer exige participação no projeto informado (404).
+    """
+
+    message = 'Só participantes do projeto podem operar as tarefas.'
+
+    def has_object_permission(self, request, view, obj):
+        return obj.my_role is not None
+
+
 class IsSuperuser(BasePermission):
     """Restringe a ação a superusuários (operações que concedem privilégios)."""
 

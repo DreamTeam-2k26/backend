@@ -1,4 +1,4 @@
-from django.db.models import OuterRef, ProtectedError, Subquery
+from django.db.models import OuterRef, ProtectedError, RestrictedError, Subquery
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import status
@@ -66,7 +66,7 @@ class ColumnViewSet(ModelViewSet):
             })
         try:
             instance.delete()
-        except ProtectedError as error:
+        except (ProtectedError, RestrictedError) as error:
             raise ValidationError({
                 'detail': 'A coluna tem tarefas. Mova as tarefas para outra coluna antes de excluí-la.'
             }) from error
