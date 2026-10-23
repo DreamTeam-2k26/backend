@@ -86,6 +86,29 @@ class ProjectRolePermission(BasePermission):
         return True
 
 
+class MembershipRolePermission(BasePermission):
+    """Gestão de participantes pelo papel do usuário logado no projeto da participação.
+
+    Alterar papel (inclusive transferir a propriedade): somente o dono.
+    Remover: o dono remove admin ou membro; o admin remove somente membro.
+    Usa o ``my_role`` que a MembershipViewSet anota em cada participação.
+    Ler é livre para qualquer participante; quem não participa nem chega aqui (404).
+    """
+
+    message = 'Seu papel no projeto não permite executar esta ação.'
+
+    def has_object_permission(self, request, view, obj):
+        if view.action in {'update', 'partial_update'}:
+            return obj.my_role == Membership.Role.OWNER
+
+        if view.action == 'destroy':
+            if obj.my_role == Membership.Role.ADMIN:
+                return obj.role == Membership.Role.MEMBER
+            return obj.my_role == Membership.Role.OWNER
+
+        return True
+
+
 class IsSuperuser(BasePermission):
     """Restringe a ação a superusuários (operações que concedem privilégios)."""
 

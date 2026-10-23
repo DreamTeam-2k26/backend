@@ -129,3 +129,12 @@ class ProjectAdmin(admin.ModelAdmin):
     search_fields = ['name']
     raw_id_fields = ['created_by']
     inlines = [ProjectMembershipInline]
+
+
+@admin.register(Membership)
+class MembershipAdmin(admin.ModelAdmin):
+    list_display = ('project', 'user', 'role', 'joined_at')
+    list_filter = ('role',)
+    search_fields = ('project__name', 'user__email')
+    ordering = ('project', 'joined_at')
+    raw_id_fields = ('project', 'user')

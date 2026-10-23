@@ -1,4 +1,5 @@
 from .group import GroupViewSet
+from .membership import MembershipViewSet
 from .permission import PermissionViewSet
 from .project import ProjectViewSet
 from .token import GroupTokenObtainPairView
