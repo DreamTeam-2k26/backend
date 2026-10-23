@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
-from core.models import Membership, Project
+from core.models import Column, Membership, Project
 
 User = get_user_model()
 
@@ -15,6 +15,7 @@ def make_user(name, **extra):
 def make_project(owner, name='Feira de Ciências', *, admins=(), members=()):
     project = Project.objects.create(name=name, created_by=owner)
     Membership.objects.create(project=project, user=owner, role=Membership.Role.OWNER)
+    Column.create_defaults(project)
 
     for user in admins:
         Membership.objects.create(project=project, user=user, role=Membership.Role.ADMIN)
