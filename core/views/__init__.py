@@ -1,5 +1,6 @@
 from .checklist_item import ChecklistItemViewSet
 from .column import ColumnViewSet
+from .comment import CommentViewSet
 from .group import GroupViewSet
 from .invite import InviteViewSet
 from .membership import MembershipViewSet

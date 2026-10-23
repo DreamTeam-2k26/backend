@@ -172,6 +172,27 @@ class ChecklistItemPermission(BasePermission):
         return obj.my_role is not None
 
 
+class CommentPermission(BasePermission):
+    """Comentários: qualquer participante lê e comenta; editar é só do autor; excluir é do autor ou de
+    dono/administrador do projeto (moderação, inclusive de comentários de usuários apagados).
+
+    Usa o ``my_role`` que a CommentViewSet anota em cada comentário (papel do usuário logado no projeto).
+    """
+
+    message = 'Só o autor pode alterar este comentário.'
+
+    def has_object_permission(self, request, view, obj):
+        is_author = obj.author_id is not None and obj.author_id == request.user.pk
+
+        if view.action in {'update', 'partial_update'}:
+            return is_author
+
+        if view.action == 'destroy':
+            return is_author or obj.my_role in {Membership.Role.OWNER, Membership.Role.ADMIN}
+
+        return True
+
+
 class IsSuperuser(BasePermission):
     """Restringe a ação a superusuários (operações que concedem privilégios)."""
 
