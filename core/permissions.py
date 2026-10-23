@@ -109,6 +109,28 @@ class MembershipRolePermission(BasePermission):
         return True
 
 
+class InvitePermission(BasePermission):
+    """Convites: dono/admin do projeto gerenciam (ver, revogar); só o destinatário aceita ou recusa.
+
+    Usa o ``my_role`` que a InviteViewSet anota em cada convite (papel do usuário logado no projeto).
+    Quem não participa do projeto e não é o destinatário nem chega aqui (404).
+    """
+
+    message = 'Você não tem permissão para esta ação neste convite.'
+
+    def has_object_permission(self, request, view, obj):
+        is_manager = obj.my_role in {Membership.Role.OWNER, Membership.Role.ADMIN}
+        is_invited_user = obj.invited_user_id == request.user.pk
+
+        if view.action in {'accept', 'decline'}:
+            return is_invited_user
+
+        if view.action == 'revoke':
+            return is_manager
+
+        return is_manager or is_invited_user
+
+
 class IsSuperuser(BasePermission):
     """Restringe a ação a superusuários (operações que concedem privilégios)."""
 

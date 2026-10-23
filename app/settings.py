@@ -184,6 +184,11 @@ SPECTACULAR_SETTINGS = {
     'TITLE': 'Hackathon API',
     'DESCRIPTION': 'API para o projeto <descreva aqui seu projeto>.',
     'VERSION': '1.0.0',
+    # Membership e Invite têm campos 'role' com opções diferentes (convite não cria dono).
+    'ENUM_NAME_OVERRIDES': {
+        'MembershipRoleEnum': 'core.models.project.Membership.Role',
+        'InviteRoleEnum': 'core.models.invite.Invite.ROLE_CHOICES',
+    },
 }
 
 # Modelo de usuário personalizado
