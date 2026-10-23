@@ -18,6 +18,7 @@ from core.views import (
     GroupTokenObtainPairView,
     GroupViewSet,
     PermissionViewSet,
+    ProjectViewSet,
     UserRegistrationView,
     UserViewSet,
 )
@@ -27,6 +28,7 @@ router = DefaultRouter()
 router.register(r'users', UserViewSet, basename='users')
 router.register(r'groups', GroupViewSet, basename='groups')
 router.register(r'permissions', PermissionViewSet, basename='permissions')
+router.register(r'projects', ProjectViewSet, basename='projects')
 
 urlpatterns = [
     path('', lambda request: redirect('api/', permanent=True)),

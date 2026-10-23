@@ -1,5 +1,7 @@
 from rest_framework.permissions import BasePermission, DjangoModelPermissions
 
+from core.models import Membership
+
 
 class ModelPermissions(DjangoModelPermissions):
     """Exige a permissão do grupo conforme a ação sobre o modelo da view.
@@ -63,6 +65,25 @@ class SelfUserPermission(ModelPermissions):
                 return True
 
         return super().has_permission(request, view)
+
+
+class ProjectRolePermission(BasePermission):
+    """Editar projeto: dono ou administrador. Excluir: somente o dono.
+
+    Usa o ``role`` que a ProjectViewSet anota em cada projeto (papel do usuário logado).
+    Ler é livre para qualquer participante; quem não participa nem chega aqui (404).
+    """
+
+    message = 'Seu papel no projeto não permite executar esta ação.'
+
+    def has_object_permission(self, request, view, obj):
+        if view.action == 'destroy':
+            return obj.role == Membership.Role.OWNER
+
+        if view.action in {'update', 'partial_update'}:
+            return obj.role in {Membership.Role.OWNER, Membership.Role.ADMIN}
+
+        return True
 
 
 class IsSuperuser(BasePermission):

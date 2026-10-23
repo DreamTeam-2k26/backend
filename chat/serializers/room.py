@@ -68,8 +68,11 @@ class RoomDetailSerializer(RoomSerializer):
 class ActiveUsersField(serializers.PrimaryKeyRelatedField):
     """Lista de ids de usuários ativos (ids inexistentes ou inativos viram erro de validação)."""
 
-    def get_queryset(self):
-        return get_user_model().objects.filter(is_active=True)
+    def __init__(self, **kwargs):
+        # queryset explícito (não só get_queryset) para o drf-spectacular descobrir o model do campo;
+        # o DRF chama .all() a cada uso, então o filtro de ativos continua valendo por requisição.
+        kwargs.setdefault('queryset', get_user_model().objects.filter(is_active=True))
+        super().__init__(**kwargs)
 
 
 class RoomCreateSerializer(serializers.Serializer):

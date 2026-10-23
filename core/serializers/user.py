@@ -1,5 +1,7 @@
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer, SlugRelatedField
 
@@ -9,6 +11,7 @@ from uploader.models import Image
 from uploader.serializers import ImageSerializer
 
 
+@extend_schema_field(OpenApiTypes.UUID)
 class OwnImageField(SlugRelatedField):
     """Só aceita imagens enviadas pelo próprio usuário da requisição."""
 
