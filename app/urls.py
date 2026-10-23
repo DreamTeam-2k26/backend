@@ -17,6 +17,7 @@ from rest_framework_simplejwt.views import (
 from core.views import (
     GroupTokenObtainPairView,
     GroupViewSet,
+    InviteViewSet,
     MembershipViewSet,
     PermissionViewSet,
     ProjectViewSet,
@@ -31,6 +32,7 @@ router.register(r'groups', GroupViewSet, basename='groups')
 router.register(r'permissions', PermissionViewSet, basename='permissions')
 router.register(r'projects', ProjectViewSet, basename='projects')
 router.register(r'memberships', MembershipViewSet, basename='memberships')
+router.register(r'invites', InviteViewSet, basename='invites')
 
 urlpatterns = [
     path('', lambda request: redirect('api/', permanent=True)),
