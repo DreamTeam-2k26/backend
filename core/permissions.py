@@ -1,4 +1,4 @@
-from rest_framework.permissions import BasePermission, DjangoModelPermissions
+from rest_framework.permissions import SAFE_METHODS, BasePermission, DjangoModelPermissions
 
 from core.models import Membership
 
@@ -129,6 +129,21 @@ class InvitePermission(BasePermission):
             return is_manager
 
         return is_manager or is_invited_user
+
+
+class ColumnPermission(BasePermission):
+    """Colunas do Kanban: qualquer participante lê; só dono ou administrador altera ou exclui.
+
+    Usa o ``my_role`` que a ColumnViewSet anota em cada coluna (papel do usuário logado no projeto).
+    Criar e reordenar não têm objeto: o serializer valida o papel no projeto informado.
+    """
+
+    message = 'Só o dono ou um administrador pode alterar as colunas do projeto.'
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in SAFE_METHODS:
+            return True
+        return obj.my_role in {Membership.Role.OWNER, Membership.Role.ADMIN}
 
 
 class IsSuperuser(BasePermission):

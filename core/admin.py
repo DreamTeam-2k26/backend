@@ -7,7 +7,7 @@ from django.contrib.auth.models import Group as AuthGroup
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
-from core.models import Group, Invite, Membership, Project, User
+from core.models import Column, Group, Invite, Membership, Project, User
 
 # O Group nativo do Django sai do admin para não haver dois painéis de grupos.
 try:
@@ -148,3 +148,12 @@ class InviteAdmin(admin.ModelAdmin):
     ordering = ('-created_at',)
     raw_id_fields = ('project', 'invited_user', 'invited_by')
     readonly_fields = ('token', 'created_at', 'responded_at')
+
+
+@admin.register(Column)
+class ColumnAdmin(admin.ModelAdmin):
+    list_display = ('name', 'project', 'category', 'position')
+    list_filter = ('category',)
+    search_fields = ('name', 'project__name')
+    ordering = ('project', 'position')
+    raw_id_fields = ('project',)

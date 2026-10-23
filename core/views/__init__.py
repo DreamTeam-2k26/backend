@@ -1,3 +1,4 @@
+from .column import ColumnViewSet
 from .group import GroupViewSet
 from .invite import InviteViewSet
 from .membership import MembershipViewSet
