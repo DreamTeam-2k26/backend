@@ -1,8 +1,13 @@
 from unittest import mock
 
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APIClient, APITestCase
 
+from chat.tests.helpers import JPEG_BYTES, TempMediaMixin
 from core.models import Membership, Project
+from uploader.models import Image
 
 from .helpers import PROJECTS, client_for, make_project, make_user, project_url
 
@@ -90,7 +95,24 @@ class ListAndDetailTests(ProjectAPITestCase):
     def test_list_returns_only_card_fields(self):
         response = client_for(self.member).get(PROJECTS)
 
-        self.assertEqual(set(response.data['results'][0]), {'id', 'name', 'description', 'role', 'updated_at'})
+        self.assertEqual(
+            set(response.data['results'][0]),
+            {'id', 'name', 'description', 'total_memberships', 'memberships', 'role', 'updated_at'},
+        )
+
+    def test_list_returns_participants_with_user_id_and_picture(self):
+        response = client_for(self.member).get(PROJECTS)
+
+        card = response.data['results'][0]
+        self.assertEqual(card['total_memberships'], 3)
+        self.assertEqual(
+            card['memberships'],
+            [
+                {'id': self.owner.pk, 'profile_picture': None},
+                {'id': self.admin.pk, 'profile_picture': None},
+                {'id': self.member.pk, 'profile_picture': None},
+            ],
+        )
 
     def test_detail_returns_all_fields(self):
         response = client_for(self.member).get(project_url(self.project))
@@ -181,3 +203,40 @@ class DeleteProjectTests(ProjectAPITestCase):
         response = client_for(self.admin).delete(project_url(self.project))
 
         self.assertEqual(response.status_code, 403)
+
+
+class ProjectCardParticipantsTests(TempMediaMixin, APITestCase):
+    def setUp(self):
+        self.owner = make_user('dono-foto')
+        self.owner.profile_picture = Image.objects.create(
+            file=SimpleUploadedFile('foto.jpg', JPEG_BYTES, content_type='image/jpeg'), uploaded_by=self.owner
+        )
+        self.owner.save()
+
+    def test_participant_picture_is_returned_as_url(self):
+        # Projetos de outra pessoa antes: o id da membership deixa de coincidir com o id do usuário.
+        other = make_user('outra')
+        make_project(other)
+        make_project(other, name='Mais um')
+        project = make_project(self.owner)
+        self.assertNotEqual(project.memberships.get().pk, self.owner.pk)
+
+        card = client_for(self.owner).get(PROJECTS).data['results'][0]
+
+        self.assertEqual(
+            card['memberships'], [{'id': self.owner.pk, 'profile_picture': self.owner.profile_picture.url}]
+        )
+
+    def test_list_query_count_does_not_grow_with_projects(self):
+        make_project(self.owner, members=[make_user('m1')])
+        with CaptureQueriesContext(connection) as one_project:
+            client_for(self.owner).get(PROJECTS)
+
+        for index in range(4):
+            make_project(
+                self.owner, name=f'Projeto {index}', members=[make_user(f'm-{index}-a'), make_user(f'm-{index}-b')]
+            )
+        with CaptureQueriesContext(connection) as five_projects:
+            client_for(self.owner).get(PROJECTS)
+
+        self.assertEqual(len(five_projects), len(one_project))

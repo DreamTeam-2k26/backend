@@ -1,4 +1,4 @@
-from django.db.models import OuterRef, Subquery
+from django.db.models import OuterRef, Prefetch, Subquery
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import ModelViewSet
@@ -30,7 +30,12 @@ class ProjectViewSet(ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         role = Membership.objects.filter(project=OuterRef('pk'), user=user).values('role')[:1]
-        return Project.objects.filter(memberships__user=user).annotate(role=Subquery(role)).order_by('-created_at')
+        queryset = Project.objects.filter(memberships__user=user).annotate(role=Subquery(role)).order_by('-created_at')
+        if self.action == 'list':
+            # Participantes do card (id e foto) em 1 consulta para todos os projetos da página, não 1 por projeto.
+            participants = Membership.objects.select_related('user__profile_picture').order_by('joined_at', 'id')
+            queryset = queryset.prefetch_related(Prefetch('memberships', queryset=participants))
+        return queryset
 
     def get_serializer_class(self):
         if self.action == 'list':
