@@ -7,7 +7,7 @@ from django.contrib.auth.models import Group as AuthGroup
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
-from core.models import ChecklistItem, Column, Comment, Group, Invite, Membership, Project, Task, User
+from core.models import ChecklistItem, Column, Comment, Group, Invite, Membership, Project, SupportLink, Task, User
 
 # O Group nativo do Django sai do admin para não haver dois painéis de grupos.
 try:
@@ -185,3 +185,11 @@ class CommentAdmin(admin.ModelAdmin):
     ordering = ('-created_at',)
     raw_id_fields = ('task', 'author')
     readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(SupportLink)
+class SupportLinkAdmin(admin.ModelAdmin):
+    list_display = ('title', 'project', 'task', 'url', 'created_by', 'created_at')
+    search_fields = ('title', 'url', 'project__name', 'task__title')
+    ordering = ('-created_at',)
+    raw_id_fields = ('project', 'task', 'created_by')

@@ -24,6 +24,7 @@ from core.views import (
     MembershipViewSet,
     PermissionViewSet,
     ProjectViewSet,
+    SupportLinkViewSet,
     TaskViewSet,
     UserRegistrationView,
     UserViewSet,
@@ -41,6 +42,7 @@ router.register(r'columns', ColumnViewSet, basename='columns')
 router.register(r'tasks', TaskViewSet, basename='tasks')
 router.register(r'checklist-items', ChecklistItemViewSet, basename='checklist-items')
 router.register(r'comments', CommentViewSet, basename='comments')
+router.register(r'support-links', SupportLinkViewSet, basename='support-links')
 
 urlpatterns = [
     path('', lambda request: redirect('api/', permanent=True)),
