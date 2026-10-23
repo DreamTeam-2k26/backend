@@ -1,11 +1,20 @@
 from django.db.models import Count, OuterRef, Prefetch, Q, Subquery
+from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework import status
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from core.models import Column, Membership, Project
+from core.models import Column, Membership, Project, Task
 from core.permissions import ProjectRolePermission
-from core.serializers import ProjectCreateUpdateSerializer, ProjectListSerializer, ProjectRetrieveSerializer
+from core.serializers import (
+    ProjectCreateUpdateSerializer,
+    ProjectDashboardSerializer,
+    ProjectListSerializer,
+    ProjectRetrieveSerializer,
+)
 
 
 @extend_schema_view(
@@ -50,3 +59,22 @@ class ProjectViewSet(ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+    @extend_schema(
+        summary='Visão Geral do projeto: totais de tarefas, atrasadas e progresso (qualquer participante)',
+        responses={200: ProjectDashboardSerializer},
+    )
+    @action(detail=True, methods=['get'])
+    def dashboard(self, request, pk=None):
+        project = self.get_object()
+        category = Column.Category
+        done = Q(column__category=category.DONE)
+        # Uma única consulta, calculada na hora: nada de estatística guardada em tabela.
+        stats = Task.objects.filter(project=project).aggregate(
+            total_tasks=Count('id'),
+            done_tasks=Count('id', filter=done),
+            todo_tasks=Count('id', filter=Q(column__category=category.TODO)),
+            in_progress_tasks=Count('id', filter=Q(column__category=category.IN_PROGRESS)),
+            overdue_tasks=Count('id', filter=Q(due_date__lt=timezone.localdate()) & ~done),
+        )
+        return Response(ProjectDashboardSerializer(stats).data, status=status.HTTP_200_OK)
