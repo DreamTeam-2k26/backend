@@ -20,5 +20,6 @@ from .invite import (
 from .membership import MembershipCreateUpdateSerializer, MembershipListSerializer, MembershipRetrieveSerializer
 from .permission import PermissionSerializer
 from .project import ProjectCreateUpdateSerializer, ProjectListSerializer, ProjectRetrieveSerializer
+from .task import TaskCreateUpdateSerializer, TaskListSerializer, TaskRetrieveSerializer
 from .token import GroupTokenObtainPairSerializer
 from .user import UserSerializer, UserRegistrationSerializer

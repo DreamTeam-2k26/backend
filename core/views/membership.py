@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models import OuterRef, Subquery
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -6,7 +7,7 @@ from rest_framework.mixins import DestroyModelMixin, ListModelMixin, RetrieveMod
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import GenericViewSet
 
-from core.models import Membership
+from core.models import Membership, Task
 from core.permissions import MembershipRolePermission
 from core.serializers import MembershipCreateUpdateSerializer, MembershipListSerializer, MembershipRetrieveSerializer
 
@@ -50,7 +51,10 @@ class MembershipViewSet(ListModelMixin, RetrieveModelMixin, UpdateModelMixin, De
             return MembershipCreateUpdateSerializer
         return MembershipRetrieveSerializer
 
+    @transaction.atomic
     def perform_destroy(self, instance):
         if instance.role == Membership.Role.OWNER:
             raise ValidationError({'detail': 'O dono não pode ser removido. Transfira a propriedade antes.'})
+        # Quem sai do projeto deixa de ser responsável pelas tarefas dele (responsável precisa ser participante).
+        Task.objects.filter(project=instance.project, assignee=instance.user).update(assignee=None)
         instance.delete()

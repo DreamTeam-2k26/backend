@@ -7,7 +7,7 @@ from django.contrib.auth.models import Group as AuthGroup
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
-from core.models import Column, Group, Invite, Membership, Project, User
+from core.models import Column, Group, Invite, Membership, Project, Task, User
 
 # O Group nativo do Django sai do admin para não haver dois painéis de grupos.
 try:
@@ -157,3 +157,13 @@ class ColumnAdmin(admin.ModelAdmin):
     search_fields = ('name', 'project__name')
     ordering = ('project', 'position')
     raw_id_fields = ('project',)
+
+
+@admin.register(Task)
+class TaskAdmin(admin.ModelAdmin):
+    list_display = ('title', 'project', 'column', 'priority', 'assignee', 'due_date', 'completed_at')
+    list_filter = ('priority', 'column__category')
+    search_fields = ('title', 'project__name', 'assignee__email')
+    ordering = ('project', 'column__position', 'position')
+    raw_id_fields = ('project', 'column', 'assignee', 'created_by')
+    readonly_fields = ('completed_at', 'created_at', 'updated_at')
