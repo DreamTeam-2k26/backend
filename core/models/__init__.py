@@ -1,6 +1,7 @@
 from .checklist_item import ChecklistItem
 from .column import Column
 from .comment import Comment
+from .file import File
 from .folder import Folder
 from .group import Group
 from .invite import Invite

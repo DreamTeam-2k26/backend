@@ -11,6 +11,7 @@ from core.models import (
     ChecklistItem,
     Column,
     Comment,
+    File,
     Folder,
     Group,
     Invite,
@@ -223,3 +224,13 @@ class FolderAdmin(admin.ModelAdmin):
     search_fields = ('name', 'project__name')
     ordering = ('project', 'name')
     raw_id_fields = ('project', 'parent', 'created_by')
+
+
+@admin.register(File)
+class FileAdmin(admin.ModelAdmin):
+    list_display = ('name', 'project', 'folder', 'size', 'mime_type', 'uploaded_by', 'uploaded_at')
+    list_filter = ('mime_type',)
+    search_fields = ('name', 'project__name')
+    ordering = ('-uploaded_at',)
+    raw_id_fields = ('project', 'folder', 'uploaded_by')
+    readonly_fields = ('file', 'size', 'mime_type', 'uploaded_at')

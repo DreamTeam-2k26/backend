@@ -18,6 +18,7 @@ from core.views import (
     ChecklistItemViewSet,
     ColumnViewSet,
     CommentViewSet,
+    FileViewSet,
     FolderViewSet,
     GroupTokenObtainPairView,
     GroupViewSet,
@@ -47,6 +48,7 @@ router.register(r'comments', CommentViewSet, basename='comments')
 router.register(r'support-links', SupportLinkViewSet, basename='support-links')
 router.register(r'meetings', MeetingViewSet, basename='meetings')
 router.register(r'folders', FolderViewSet, basename='folders')
+router.register(r'files', FileViewSet, basename='files')
 
 urlpatterns = [
     path('', lambda request: redirect('api/', permanent=True)),

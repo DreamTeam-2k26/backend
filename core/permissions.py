@@ -235,6 +235,19 @@ class FolderPermission(BasePermission):
         return obj.my_role is not None
 
 
+class FilePermission(BasePermission):
+    """Arquivos: qualquer participante do projeto (dono, administrador ou membro) envia, baixa e gerencia.
+
+    Usa o ``my_role`` que a FileViewSet anota em cada arquivo (papel do usuário logado no projeto).
+    Enviar não tem objeto: o serializer exige participação no projeto informado (404).
+    """
+
+    message = 'Só participantes do projeto podem operar os arquivos.'
+
+    def has_object_permission(self, request, view, obj):
+        return obj.my_role is not None
+
+
 class IsSuperuser(BasePermission):
     """Restringe a ação a superusuários (operações que concedem privilégios)."""
 

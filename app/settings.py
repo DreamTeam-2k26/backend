@@ -156,6 +156,9 @@ MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE_MB', '5')) * 1024 * 1024
 # Tamanho máximo dos anexos do chat (qualquer tipo de arquivo; o download exige participar da sala).
 CHAT_MAX_UPLOAD_MB = int(os.getenv('CHAT_MAX_UPLOAD_MB', '10'))
 
+# Tamanho máximo dos arquivos de projeto (core.File; tipos permitidos em core/models/file.py).
+PROJECT_FILE_MAX_UPLOAD_MB = int(os.getenv('PROJECT_FILE_MAX_UPLOAD_MB', '20'))
+
 # Com CLOUDINARY_URL definida os uploads vão para o Cloudinary; sem ela ficam em MEDIA_ROOT.
 # Fora do DEBUG os estáticos usam o manifest do whitenoise (exige collectstatic).
 CLOUDINARY_URL = os.getenv('CLOUDINARY_URL')
