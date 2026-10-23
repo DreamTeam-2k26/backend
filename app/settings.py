@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'uploader',
     'core',
+    'chat',
 ]
 
 MIDDLEWARE = [
@@ -151,6 +152,9 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 FILE_UPLOAD_PERMISSIONS = 0o640
 MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE_MB', '5')) * 1024 * 1024
+
+# Tamanho máximo dos anexos do chat (qualquer tipo de arquivo; o download exige participar da sala).
+CHAT_MAX_UPLOAD_MB = int(os.getenv('CHAT_MAX_UPLOAD_MB', '10'))
 
 # Com CLOUDINARY_URL definida os uploads vão para o Cloudinary; sem ela ficam em MEDIA_ROOT.
 # Fora do DEBUG os estáticos usam o manifest do whitenoise (exige collectstatic).

@@ -42,6 +42,7 @@ A API sobe em http://127.0.0.1:8000/api/ e a documentação em http://127.0.0.1:
 Todas estão documentadas em [`.env.example`](.env.example). Os principais comportamentos:
 
 - `DEBUG=False` exige `SECRET_KEY` e ativa o whitenoise com manifest (rode `python manage.py collectstatic`).
+- `CHAT_MAX_UPLOAD_MB` (padrão 10) limita o tamanho dos anexos do chat.
 - Sem `DATABASE_URL` usa SQLite; sem `REDIS_URL` usa a camada do Channels em memória; sem `CLOUDINARY_URL` grava uploads em `media/`.
 
 ## Estrutura
@@ -49,6 +50,7 @@ Todas estão documentadas em [`.env.example`](.env.example). Os principais compo
 - `app/` — configuração do projeto (settings, urls, asgi, paginação)
 - `core/` — usuário customizado (login por e-mail), grupos, permissões, JWT e middleware de WebSocket
 - `uploader/` — upload de imagens (JPEG/PNG) e documentos (PDF)
+- `chat/` — chat em tempo real em salas coletivas (REST + WebSocket); veja a seção [Chat](#chat)
 
 ## Endpoints
 
@@ -72,3 +74,33 @@ O `attachment_key` funciona como comprovante de posse: não existe endpoint que 
 ## WebSocket
 
 Rotas em `core/routing.py`. A autenticação usa o JWT na query string: `ws://host/ws/...?token=<access>`. Evite logar URLs de WebSocket, já que o token vai nelas.
+
+## Chat
+
+App `chat/`: salas coletivas (sem conversas privadas 1:1 e sem sala pública global). Só participantes (`Membership`) leem ou escrevem; quem não participa recebe 404, igual a uma sala inexistente. Usa o mesmo usuário e JWT do restante da plataforma; o autor vem sempre do token, nunca do cliente. Não adiciona dependências.
+
+### REST (`/api/chat/`, JWT `Authorization: Bearer`)
+
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| GET/POST | `rooms/` | Lista as salas do usuário (com não lidas e última mensagem; paginada, use `page_size=100`) / cria sala (`name`, `members`, `image_attachment_key`) |
+| GET/PATCH | `rooms/{id}/` | Detalhe com membros e presença / renomeia (admin) |
+| POST | `rooms/{id}/members/` | Adiciona membros (admin) |
+| DELETE | `rooms/{id}/members/{user_id}/` | Remove membro (admin) |
+| PUT/DELETE | `rooms/{id}/members/{user_id}/admin/` | Promove / rebaixa admin |
+| POST | `rooms/{id}/leave/` | Sai da sala (se ficar vazia, é apagada com seus arquivos) |
+| POST | `rooms/{id}/read/` | Marca como lida |
+| GET/POST | `rooms/{id}/messages/` | Histórico (`?before=<id>` para páginas antigas) / envia texto ou arquivo (multipart, campo `file`) |
+| GET | `messages/{id}/file/` | Baixa anexo (só membros; imagens inline, o resto como download) |
+| GET | `users/?search=&exclude_room=` | Busca usuários para convidar (mínimo 2 caracteres; não expõe e-mail) |
+
+### WebSocket `ws://host/ws/chat/?token=<access>`
+
+Uma conexão por aba. Sem token válido a conexão é aceita e fechada com o código **4401** (o cliente não deve reconectar). Quadros acima de 16 KB são recusados.
+
+- Cliente → servidor: `{"action": "send" | "edit" | "delete" | "typing" | "read", "room": <id>, ...}`
+- Servidor → cliente: `message.new`, `message.update`, `typing`, `presence`, `read.receipt`, `room.updated`, `room.removed`, `error`
+
+Se o servidor for encerrado de forma abrupta, rode `python manage.py reset_chat_presence` para zerar os contadores de presença.
+
+Limitações conhecidas: sem rate limiting; o token expirado não derruba um socket já aberto; anexos aceitam qualquer tipo até `CHAT_MAX_UPLOAD_MB`; ainda não há entidade de projeto, então as salas são independentes.
