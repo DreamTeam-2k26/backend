@@ -31,6 +31,35 @@ CSRF_TRUSTED_ORIGINS = env_list('CSRF_TRUSTED_ORIGINS', 'http://localhost:3000,h
 CORS_ALLOWED_ORIGINS = env_list('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')
 CORS_ALLOW_ALL_ORIGINS = env_bool('CORS_ALLOW_ALL_ORIGINS', default=DEBUG)
 
+# Produção (DEBUG=False) só por HTTPS. O Fabroku termina o TLS no proxy e informa o esquema original
+# em X-Forwarded-Proto. HSTS começa curto; aumente SECURE_HSTS_SECONDS (ex.: 31536000) depois de validar.
+if not (DEBUG or TESTING):
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = env_bool('SECURE_SSL_REDIRECT', default=True)
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '3600'))
+
+# Login com Google (Google Identity Services). Client ID do tipo "Aplicativo da Web" no Google Cloud; é
+# público (o frontend usa o mesmo). Não existe client secret neste fluxo. Vazio: /api/auth/google/ responde
+# 503 e o `manage.py check` avisa (core.W001) fora do DEBUG.
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '').strip()
+
+# IA para o resumo de reuniões e a síntese do Brainstorm (API de chat compatível com a OpenAI; padrão: OpenRouter
+# com um modelo gratuito). Chave só no servidor; vazia, as ações de IA respondem 503 e o resto funciona normal.
+# Sem AI_ALLOW_PAID=true, core.ai recusa qualquer modelo que não seja gratuito (`:free` ou `openrouter/free`).
+AI_API_KEY = os.getenv('AI_API_KEY', '').strip()
+AI_API_URL = os.getenv('AI_API_URL', '').strip() or 'https://openrouter.ai/api/v1/chat/completions'
+AI_MODEL = os.getenv('AI_MODEL', '').strip() or 'google/gemma-4-31b-it:free'
+AI_ALLOW_PAID = os.getenv('AI_ALLOW_PAID', '').strip().lower() in {'1', 'true', 'yes'}
+# Reservas (vírgula) tentadas em ordem quando o modelo principal falha; modelos gratuitos ficam congestionados.
+AI_FALLBACK_MODELS = [
+    model.strip()
+    for model in (os.getenv('AI_FALLBACK_MODELS') or 'nvidia/nemotron-3-ultra-550b-a55b:free').split(',')
+    if model.strip()
+]
+BRAINSTORM_AI_MODEL = os.getenv('BRAINSTORM_AI_MODEL', '').strip() or AI_MODEL
+
 # Aplicações instaladas
 INSTALLED_APPS = [
     'daphne',
@@ -51,6 +80,8 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'uploader',
     'core',
+    'chat',
+    'calls',
 ]
 
 MIDDLEWARE = [
@@ -152,6 +183,12 @@ MEDIA_ROOT = BASE_DIR / 'media'
 FILE_UPLOAD_PERMISSIONS = 0o640
 MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE_MB', '5')) * 1024 * 1024
 
+# Tamanho máximo dos anexos do chat (qualquer tipo de arquivo; o download exige participar da sala).
+CHAT_MAX_UPLOAD_MB = int(os.getenv('CHAT_MAX_UPLOAD_MB', '10'))
+
+# Tamanho máximo dos arquivos de projeto (core.File; tipos permitidos em core/models/file.py).
+PROJECT_FILE_MAX_UPLOAD_MB = int(os.getenv('PROJECT_FILE_MAX_UPLOAD_MB', '20'))
+
 # Com CLOUDINARY_URL definida os uploads vão para o Cloudinary; sem ela ficam em MEDIA_ROOT.
 # Fora do DEBUG os estáticos usam o manifest do whitenoise (exige collectstatic).
 CLOUDINARY_URL = os.getenv('CLOUDINARY_URL')
@@ -180,6 +217,16 @@ SPECTACULAR_SETTINGS = {
     'TITLE': 'Fluxo API',
     'DESCRIPTION': 'API do Fluxo, plataforma colaborativa de gerenciamento de projetos e tarefas.',
     'VERSION': '1.0.0',
+    # Membership e Invite têm campos 'role' com opções diferentes (convite não cria dono).
+    'ENUM_NAME_OVERRIDES': {
+        'MembershipRoleEnum': 'core.models.project.Membership.Role',
+        'InviteRoleEnum': 'core.models.invite.Invite.ROLE_CHOICES',
+        # status/category do Brainstorm não podem colidir com os de tarefas, colunas, convites e chamadas.
+        'BrainstormTopicStatusEnum': 'core.models.brainstorm_topic.BrainstormTopic.Status',
+        'BrainstormTopicCategoryEnum': 'core.models.brainstorm_topic.BrainstormTopic.Category',
+        'BrainstormAnalysisStatusEnum': 'core.models.brainstorm_analysis.BrainstormAnalysis.Status',
+        'CategoryEnum': 'core.models.column.Column.Category',
+    },
 }
 
 # Modelo de usuário personalizado

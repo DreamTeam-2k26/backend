@@ -1,4 +1,6 @@
-from rest_framework.permissions import BasePermission, DjangoModelPermissions
+from rest_framework.permissions import SAFE_METHODS, BasePermission, DjangoModelPermissions
+
+from core.models import Membership
 
 
 class ModelPermissions(DjangoModelPermissions):
@@ -65,6 +67,188 @@ class SelfUserPermission(ModelPermissions):
         return super().has_permission(request, view)
 
 
+class ProjectRolePermission(BasePermission):
+    """Editar projeto: dono ou administrador. Excluir: somente o dono.
+
+    Usa o ``role`` que a ProjectViewSet anota em cada projeto (papel do usuário logado).
+    Ler é livre para qualquer participante; quem não participa nem chega aqui (404).
+    """
+
+    message = 'Seu papel no projeto não permite executar esta ação.'
+
+    def has_object_permission(self, request, view, obj):
+        if view.action == 'destroy':
+            return obj.role == Membership.Role.OWNER
+
+        if view.action in {'update', 'partial_update'}:
+            return obj.role in {Membership.Role.OWNER, Membership.Role.ADMIN}
+
+        return True
+
+
+class MembershipRolePermission(BasePermission):
+    """Gestão de participantes pelo papel do usuário logado no projeto da participação.
+
+    Alterar papel (inclusive transferir a propriedade): somente o dono.
+    Remover: o dono remove admin ou membro; o admin remove somente membro.
+    Usa o ``my_role`` que a MembershipViewSet anota em cada participação.
+    Ler é livre para qualquer participante; quem não participa nem chega aqui (404).
+    """
+
+    message = 'Seu papel no projeto não permite executar esta ação.'
+
+    def has_object_permission(self, request, view, obj):
+        if view.action in {'update', 'partial_update'}:
+            return obj.my_role == Membership.Role.OWNER
+
+        if view.action == 'destroy':
+            if obj.my_role == Membership.Role.ADMIN:
+                return obj.role == Membership.Role.MEMBER
+            return obj.my_role == Membership.Role.OWNER
+
+        return True
+
+
+class InvitePermission(BasePermission):
+    """Convites: dono/admin do projeto gerenciam (ver, revogar); só o destinatário aceita ou recusa.
+
+    Usa o ``my_role`` que a InviteViewSet anota em cada convite (papel do usuário logado no projeto).
+    Quem não participa do projeto e não é o destinatário nem chega aqui (404).
+    """
+
+    message = 'Você não tem permissão para esta ação neste convite.'
+
+    def has_object_permission(self, request, view, obj):
+        is_manager = obj.my_role in {Membership.Role.OWNER, Membership.Role.ADMIN}
+        is_invited_user = obj.invited_user_id == request.user.pk
+
+        if view.action in {'accept', 'decline'}:
+            return is_invited_user
+
+        if view.action == 'revoke':
+            return is_manager
+
+        return is_manager or is_invited_user
+
+
+class ColumnPermission(BasePermission):
+    """Colunas do Kanban: qualquer participante lê; só dono ou administrador altera ou exclui.
+
+    Usa o ``my_role`` que a ColumnViewSet anota em cada coluna (papel do usuário logado no projeto).
+    Criar e reordenar não têm objeto: o serializer valida o papel no projeto informado.
+    """
+
+    message = 'Só o dono ou um administrador pode alterar as colunas do projeto.'
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in SAFE_METHODS:
+            return True
+        return obj.my_role in {Membership.Role.OWNER, Membership.Role.ADMIN}
+
+
+class TaskPermission(BasePermission):
+    """Tarefas: qualquer participante do projeto (dono, administrador ou membro) faz tudo, inclusive anexar e
+    desvincular arquivos do projeto (actions files e detach_file da TaskViewSet).
+
+    Usa o ``my_role`` que a TaskViewSet anota em cada tarefa (papel do usuário logado no projeto).
+    Criar não tem objeto: o serializer exige participação no projeto informado (404).
+    """
+
+    message = 'Só participantes do projeto podem operar as tarefas.'
+
+    def has_object_permission(self, request, view, obj):
+        return obj.my_role is not None
+
+
+class ChecklistItemPermission(BasePermission):
+    """Checklist: qualquer participante do projeto da tarefa (dono, administrador ou membro) faz tudo.
+
+    Usa o ``my_role`` que a ChecklistItemViewSet anota em cada item (papel do usuário logado no projeto).
+    Criar e reordenar não têm objeto: o serializer exige participação no projeto da tarefa (404).
+    """
+
+    message = 'Só participantes do projeto podem operar o checklist.'
+
+    def has_object_permission(self, request, view, obj):
+        return obj.my_role is not None
+
+
+class CommentPermission(BasePermission):
+    """Comentários: qualquer participante lê e comenta; editar é só do autor; excluir é do autor ou de
+    dono/administrador do projeto (moderação, inclusive de comentários de usuários apagados).
+
+    Usa o ``my_role`` que a CommentViewSet anota em cada comentário (papel do usuário logado no projeto).
+    """
+
+    message = 'Só o autor pode alterar este comentário.'
+
+    def has_object_permission(self, request, view, obj):
+        is_author = obj.author_id is not None and obj.author_id == request.user.pk
+
+        if view.action in {'update', 'partial_update'}:
+            return is_author
+
+        if view.action == 'destroy':
+            return is_author or obj.my_role in {Membership.Role.OWNER, Membership.Role.ADMIN}
+
+        return True
+
+
+class SupportLinkPermission(BasePermission):
+    """Links de apoio: qualquer participante do projeto (dono, administrador ou membro) faz tudo.
+
+    Usa o ``my_role`` que a SupportLinkViewSet anota em cada link (papel do usuário logado no projeto).
+    Criar não tem objeto: o serializer exige participação no projeto informado (404).
+    """
+
+    message = 'Só participantes do projeto podem operar os links de apoio.'
+
+    def has_object_permission(self, request, view, obj):
+        return obj.my_role is not None
+
+
+class MeetingPermission(BasePermission):
+    """Reuniões: qualquer participante vê e agenda; editar ou excluir é de quem criou ou de dono/administrador
+    (inclusive reuniões cujo autor foi apagado do sistema).
+
+    Usa o ``my_role`` que a MeetingViewSet anota em cada reunião (papel do usuário logado no projeto).
+    """
+
+    message = 'Só quem agendou, o dono ou um administrador pode alterar esta reunião.'
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in SAFE_METHODS:
+            return True
+        is_creator = obj.created_by_id is not None and obj.created_by_id == request.user.pk
+        return is_creator or obj.my_role in {Membership.Role.OWNER, Membership.Role.ADMIN}
+
+
+class FolderPermission(BasePermission):
+    """Pastas: qualquer participante do projeto (dono, administrador ou membro) faz tudo.
+
+    Usa o ``my_role`` que a FolderViewSet anota em cada pasta (papel do usuário logado no projeto).
+    Criar não tem objeto: o serializer exige participação no projeto informado (404).
+    """
+
+    message = 'Só participantes do projeto podem operar as pastas.'
+
+    def has_object_permission(self, request, view, obj):
+        return obj.my_role is not None
+
+
+class FilePermission(BasePermission):
+    """Arquivos: qualquer participante do projeto (dono, administrador ou membro) envia, baixa e gerencia.
+
+    Usa o ``my_role`` que a FileViewSet anota em cada arquivo (papel do usuário logado no projeto).
+    Enviar não tem objeto: o serializer exige participação no projeto informado (404).
+    """
+
+    message = 'Só participantes do projeto podem operar os arquivos.'
+
+    def has_object_permission(self, request, view, obj):
+        return obj.my_role is not None
+
+
 class IsSuperuser(BasePermission):
     """Restringe a ação a superusuários (operações que concedem privilégios)."""
 
@@ -74,3 +258,50 @@ class IsSuperuser(BasePermission):
         user = request.user
 
         return bool(user and user.is_authenticated and user.is_superuser)
+
+
+class BrainstormTopicPermission(BasePermission):
+    """Brainstorm: qualquer participante lê, cria e vota; editar é do autor; excluir é do autor ou de dono/admin.
+
+    Encerrar, reabrir, arquivar, pedir a análise da IA e aprovar a decisão: somente dono ou administrador.
+    Usa o ``my_role`` que a BrainstormTopicViewSet anota em cada discussão (papel do usuário logado no projeto).
+    """
+
+    message = 'Seu papel no projeto não permite executar esta ação na discussão.'
+    manager_actions = frozenset({'close', 'reopen', 'archive', 'analyze', 'approve'})
+
+    def has_object_permission(self, request, view, obj):
+        is_manager = obj.my_role in {Membership.Role.OWNER, Membership.Role.ADMIN}
+        is_author = obj.author_id is not None and obj.author_id == request.user.pk
+
+        if view.action in self.manager_actions:
+            return is_manager
+
+        if view.action in {'update', 'partial_update'}:
+            return is_author
+
+        if view.action == 'destroy':
+            return is_author or is_manager
+
+        return True
+
+
+class BrainstormReplyPermission(BasePermission):
+    """Respostas do Brainstorm: qualquer participante lê, responde e vota; editar é só do autor; excluir é do autor
+    ou de dono/administrador (moderação).
+
+    Usa o ``my_role`` que a BrainstormReplyViewSet anota em cada resposta (papel do usuário logado no projeto).
+    """
+
+    message = 'Só o autor pode alterar esta resposta.'
+
+    def has_object_permission(self, request, view, obj):
+        is_author = obj.author_id is not None and obj.author_id == request.user.pk
+
+        if view.action in {'update', 'partial_update'}:
+            return is_author
+
+        if view.action == 'destroy':
+            return is_author or obj.my_role in {Membership.Role.OWNER, Membership.Role.ADMIN}
+
+        return True

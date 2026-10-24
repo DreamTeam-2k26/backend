@@ -5,7 +5,7 @@ description = "Backend do Fluxo (Django + DRF + Channels, gerenciado com PDM)"
 authors = [
     {name = "AndreRicardoSc",email = "schultzandrericardo@gmail.com"},
 ]
-dependencies = ["django>=6.1.2", "djangorestframework>=3.18.3", "djangorestframework-simplejwt>=5.5.1", "django-cors-headers>=4.9.0", "daphne>=4.2.3", "django-cloudinary-storage>=0.3.0", "cloudinary>=1.46.3", "channels>=4.3.2", "django-extensions>=4.1", "django-filter>=26.2", "drf-spectacular>=0.30.0", "python-dotenv>=1.2.4", "dj-database-url>=3.1.2", "python-magic>=0.4.27", "python-magic-bin>=0.4.14; sys_platform == 'win32'", "whitenoise>=6.12.0", "pillow>=13.0.0", "channels-redis>=4.2"]
+dependencies = ["django>=6.1.2", "djangorestframework>=3.18.3", "djangorestframework-simplejwt>=5.5.1", "django-cors-headers>=4.9.0", "daphne>=4.2.3", "django-cloudinary-storage>=0.3.0", "cloudinary>=1.46.3", "channels>=4.3.2", "django-extensions>=4.1", "django-filter>=26.2", "drf-spectacular>=0.30.0", "python-dotenv>=1.2.4", "dj-database-url>=3.1.2", "python-magic>=0.4.27", "python-magic-bin>=0.4.14; sys_platform == 'win32'", "whitenoise>=6.12.0", "pillow>=13.0.0", "channels-redis>=4.2", "google-auth>=2.62.0", "requests>=2.34.2"]
 requires-python = "==3.14.*"
 readme = "README.md"
 license = {text = "MIT"}
