@@ -15,6 +15,8 @@ from rest_framework_simplejwt.views import (
 )
 
 from core.views import (
+    BrainstormReplyViewSet,
+    BrainstormTopicViewSet,
     ChecklistItemViewSet,
     ColumnViewSet,
     CommentViewSet,
@@ -51,6 +53,8 @@ router.register(r'support-links', SupportLinkViewSet, basename='support-links')
 router.register(r'meetings', MeetingViewSet, basename='meetings')
 router.register(r'folders', FolderViewSet, basename='folders')
 router.register(r'files', FileViewSet, basename='files')
+router.register(r'brainstorm-topics', BrainstormTopicViewSet, basename='brainstorm-topics')
+router.register(r'brainstorm-replies', BrainstormReplyViewSet, basename='brainstorm-replies')
 
 urlpatterns = [
     path('', lambda request: redirect('api/', permanent=True)),

@@ -45,6 +45,21 @@ if not (DEBUG or TESTING):
 # 503 e o `manage.py check` avisa (core.W001) fora do DEBUG.
 GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '').strip()
 
+# IA para o resumo de reuniões e a síntese do Brainstorm (API de chat compatível com a OpenAI; padrão: OpenRouter
+# com um modelo gratuito). Chave só no servidor; vazia, as ações de IA respondem 503 e o resto funciona normal.
+# Sem AI_ALLOW_PAID=true, core.ai recusa qualquer modelo que não seja gratuito (`:free` ou `openrouter/free`).
+AI_API_KEY = os.getenv('AI_API_KEY', '').strip()
+AI_API_URL = os.getenv('AI_API_URL', '').strip() or 'https://openrouter.ai/api/v1/chat/completions'
+AI_MODEL = os.getenv('AI_MODEL', '').strip() or 'google/gemma-4-31b-it:free'
+AI_ALLOW_PAID = os.getenv('AI_ALLOW_PAID', '').strip().lower() in {'1', 'true', 'yes'}
+# Reservas (vírgula) tentadas em ordem quando o modelo principal falha; modelos gratuitos ficam congestionados.
+AI_FALLBACK_MODELS = [
+    model.strip()
+    for model in (os.getenv('AI_FALLBACK_MODELS') or 'nvidia/nemotron-3-ultra-550b-a55b:free').split(',')
+    if model.strip()
+]
+BRAINSTORM_AI_MODEL = os.getenv('BRAINSTORM_AI_MODEL', '').strip() or AI_MODEL
+
 # Aplicações instaladas
 INSTALLED_APPS = [
     'daphne',
@@ -206,6 +221,11 @@ SPECTACULAR_SETTINGS = {
     'ENUM_NAME_OVERRIDES': {
         'MembershipRoleEnum': 'core.models.project.Membership.Role',
         'InviteRoleEnum': 'core.models.invite.Invite.ROLE_CHOICES',
+        # status/category do Brainstorm não podem colidir com os de tarefas, colunas, convites e chamadas.
+        'BrainstormTopicStatusEnum': 'core.models.brainstorm_topic.BrainstormTopic.Status',
+        'BrainstormTopicCategoryEnum': 'core.models.brainstorm_topic.BrainstormTopic.Category',
+        'BrainstormAnalysisStatusEnum': 'core.models.brainstorm_analysis.BrainstormAnalysis.Status',
+        'CategoryEnum': 'core.models.column.Column.Category',
     },
 }
 

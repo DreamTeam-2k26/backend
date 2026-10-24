@@ -13,6 +13,8 @@ from app.urls import router
 from calls.models import Call
 from chat.tests.helpers import PDF_BYTES, TempMediaMixin
 from core.models import (
+    BrainstormReply,
+    BrainstormTopic,
     ChecklistItem,
     Comment,
     File,
@@ -55,6 +57,8 @@ class ProjectWorld:
         self.call = Call.objects.create(project=self.project, title='Chamada', scheduled_for=timezone.now())
         self.room = self.project.chat_room
         self.membership = Membership.objects.get(project=self.project, user=owner)
+        self.topic = BrainstormTopic.objects.create(project=self.project, author=owner, title='Tema', context='x')
+        self.reply = BrainstormReply.objects.create(topic=self.topic, author=owner, content='Ideia')
 
     def detail_urls(self):
         """(url, métodos que alteram) de cada recurso do projeto."""
@@ -76,6 +80,9 @@ class ProjectWorld:
             (f'/api/calls/{self.call.pk}/', ('patch', 'delete')),
             (f'/api/chat/rooms/{self.room.pk}/', ()),
             (f'/api/chat/rooms/{self.room.pk}/messages/', ()),
+            (f'/api/brainstorm-topics/{self.topic.pk}/', ('patch', 'delete')),
+            (f'/api/brainstorm-topics/{self.topic.pk}/versions/', ()),
+            (f'/api/brainstorm-replies/{self.reply.pk}/', ('patch', 'delete')),
         ]
 
     def list_requests(self):
@@ -94,6 +101,8 @@ class ProjectWorld:
             ('/api/files/', {'project': project}),
             ('/api/calls/', {'project': project}),
             ('/api/chat/rooms/', {'project': project}),
+            ('/api/brainstorm-topics/', {'project': project}),
+            ('/api/brainstorm-replies/', {'topic': self.topic.pk}),
         ]
 
 
