@@ -17,6 +17,7 @@ from rest_framework.serializers import (
 from core.models import Column, Membership, Task, User
 from core.serializers.file import FileListSerializer
 from core.serializers.task_file import attached_files
+from core.serializers.user import profile_picture_url
 
 
 def end_of_column(column, exclude=None):
@@ -28,6 +29,7 @@ def end_of_column(column, exclude=None):
 
 class TaskListSerializer(ModelSerializer):
     assignee_name = CharField(source='assignee.name', read_only=True, default=None)
+    assignee_profile_picture = SerializerMethodField()
     is_overdue = BooleanField(read_only=True)
     checklist_total = IntegerField(read_only=True)  # anotado por Task.objects.with_checklist_counts()
     checklist_done = IntegerField(read_only=True)
@@ -44,6 +46,7 @@ class TaskListSerializer(ModelSerializer):
             'priority',
             'assignee',
             'assignee_name',
+            'assignee_profile_picture',
             'due_date',
             'position',
             'completed_at',
@@ -53,11 +56,16 @@ class TaskListSerializer(ModelSerializer):
             'comments_count',
         )
 
+    def get_assignee_profile_picture(self, task) -> str | None:
+        return profile_picture_url(task.assignee)
+
 
 class TaskRetrieveSerializer(ModelSerializer):
     column_name = CharField(source='column.name', read_only=True)
     assignee_name = CharField(source='assignee.name', read_only=True, default=None)
     created_by_name = CharField(source='created_by.name', read_only=True, default=None)
+    assignee_profile_picture = SerializerMethodField()
+    created_by_profile_picture = SerializerMethodField()
     is_overdue = BooleanField(read_only=True)
     checklist_total = IntegerField(read_only=True)  # anotado por Task.objects.with_checklist_counts()
     checklist_done = IntegerField(read_only=True)
@@ -76,6 +84,7 @@ class TaskRetrieveSerializer(ModelSerializer):
             'priority',
             'assignee',
             'assignee_name',
+            'assignee_profile_picture',
             'due_date',
             'position',
             'completed_at',
@@ -86,9 +95,16 @@ class TaskRetrieveSerializer(ModelSerializer):
             'files',
             'created_by',
             'created_by_name',
+            'created_by_profile_picture',
             'created_at',
             'updated_at',
         )
+
+    def get_assignee_profile_picture(self, task) -> str | None:
+        return profile_picture_url(task.assignee)
+
+    def get_created_by_profile_picture(self, task) -> str | None:
+        return profile_picture_url(task.created_by)
 
     @extend_schema_field(FileListSerializer(many=True))
     def get_files(self, task):

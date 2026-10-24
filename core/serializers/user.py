@@ -11,6 +11,12 @@ from uploader.models import Image
 from uploader.serializers import ImageSerializer
 
 
+def profile_picture_url(user) -> str | None:
+    """URL da foto de perfil para exibir avatar em listas (null sem usuário ou sem foto)."""
+    image = user.profile_picture if user else None
+    return image.url if image else None
+
+
 @extend_schema_field(OpenApiTypes.UUID)
 class OwnImageField(SlugRelatedField):
     """Só aceita imagens enviadas pelo próprio usuário da requisição."""

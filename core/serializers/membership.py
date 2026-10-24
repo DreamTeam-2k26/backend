@@ -1,26 +1,45 @@
 from django.db import transaction
-from rest_framework.serializers import CharField, ModelSerializer, ValidationError
+from rest_framework.serializers import CharField, ModelSerializer, SerializerMethodField, ValidationError
 
 from core.models import Membership
+from core.serializers.user import profile_picture_url
 
 
 class MembershipListSerializer(ModelSerializer):
     user_email = CharField(source='user.email', read_only=True)
     user_name = CharField(source='user.name', read_only=True)
+    user_profile_picture = SerializerMethodField()
 
     class Meta:
         model = Membership
-        fields = ('id', 'project', 'user', 'user_email', 'user_name', 'role', 'joined_at')
+        fields = ('id', 'project', 'user', 'user_email', 'user_name', 'user_profile_picture', 'role', 'joined_at')
+
+    def get_user_profile_picture(self, membership) -> str | None:
+        return profile_picture_url(membership.user)
 
 
 class MembershipRetrieveSerializer(ModelSerializer):
     user_email = CharField(source='user.email', read_only=True)
     user_name = CharField(source='user.name', read_only=True)
+    user_profile_picture = SerializerMethodField()
     project_name = CharField(source='project.name', read_only=True)
 
     class Meta:
         model = Membership
-        fields = ('id', 'project', 'project_name', 'user', 'user_email', 'user_name', 'role', 'joined_at')
+        fields = (
+            'id',
+            'project',
+            'project_name',
+            'user',
+            'user_email',
+            'user_name',
+            'user_profile_picture',
+            'role',
+            'joined_at',
+        )
+
+    def get_user_profile_picture(self, membership) -> str | None:
+        return profile_picture_url(membership.user)
 
 
 class MembershipCreateUpdateSerializer(ModelSerializer):
