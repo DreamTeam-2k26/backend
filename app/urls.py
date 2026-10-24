@@ -20,6 +20,8 @@ from core.views import (
     CommentViewSet,
     FileViewSet,
     FolderViewSet,
+    GoogleLinkView,
+    GoogleLoginView,
     GroupTokenObtainPairView,
     GroupViewSet,
     InviteViewSet,
@@ -63,5 +65,7 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
     path('api/register/', UserRegistrationView.as_view(), name='user_registration'),
+    path('api/auth/google/', GoogleLoginView.as_view(), name='google_login'),
+    path('api/auth/google/link/', GoogleLinkView.as_view(), name='google_link'),
 ]
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

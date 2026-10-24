@@ -59,6 +59,8 @@ Todas estão documentadas em [`.env.example`](.env.example). Os principais compo
 | POST | `/api/register/` | Público — cria conta (`email`, `password`) |
 | POST | `/api/token/`, `/api/token/refresh/`, `/api/token/verify/` | Público — JWT |
 | GET | `/api/users/me/` | Autenticado |
+| POST | `/api/auth/google/` | Público — entra/cadastra com Google (`credential`); veja [Login com Google](#login-com-google) |
+| GET/POST | `/api/auth/google/link/` | Autenticado — consulta/vincula a conta Google |
 | GET/PATCH/DELETE | `/api/users/{id}/` | O próprio usuário ou equipe (só superusuário altera superusuário) |
 | GET/POST | `/api/users/` | Lista: equipe vê todos, demais só a si; criação: equipe |
 | GET | `/api/groups/`, `/api/permissions/` | Autenticado (escrita em grupos: superusuário) |
@@ -119,3 +121,69 @@ A foto é opcional: após o cadastro, envie uma imagem pelo uploader autenticado
 `profile_picture_attachment_key` no perfil. A imagem precisa existir e pertencer ao usuário.
 Envie `null` nesse campo para remover a associação sem apagar o upload. O cadastro sem foto
 não exige upload; login por e-mail, refresh e verify mantêm as rotas e os contratos existentes.
+
+## Login com Google
+
+O frontend usa o **Google Identity Services (GIS)**, que entrega um **ID token** do Google (`response.credential`).
+O backend confere esse token com a biblioteca oficial `google-auth` (assinatura pelas chaves públicas do Google,
+`aud` igual ao nosso Client ID, `iss`, `exp` e e-mail verificado) e devolve **o mesmo JWT do `POST /api/token/`**.
+O ID token do Google nunca é usado como token da API.
+
+### Configuração (uma vez)
+
+1. No [Google Cloud Console](https://console.cloud.google.com/) crie (ou escolha) um projeto.
+2. Em **APIs e serviços → Tela de consentimento OAuth**, configure o app (tipo *Externo*, nome "Fluxo",
+   e-mail de suporte). Enquanto o app estiver em *teste*, só os e-mails cadastrados como testadores entram.My Project 92734
+3. Em **APIs e serviços → Credenciais → Criar credenciais → ID do cliente OAuth**, escolha
+   **Aplicativo da Web** e preencha **Origens JavaScript autorizadas** com as URLs do frontend, por exemplo
+   `http://localhost:5173` e `http://localhost` (desenvolvimento) e a URL HTTPS de produção.
+   O GIS com callback não usa *URIs de redirecionamento*.
+4. Copie o **ID do cliente** (`xxxx.apps.googleusercontent.com`) para o ambiente do backend:
+   `GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com`. O frontend usa o mesmo valor.
+   **Não existe client secret neste fluxo**: não crie, não guarde e nunca coloque um secret no frontend.
+
+Sem `GOOGLE_CLIENT_ID`, o login tradicional continua normal, `/api/auth/google/` responde 503
+(`google_auth_unavailable`) e, com `DEBUG=False`, o `manage.py check` mostra o aviso `core.W001`.
+
+### Endpoints
+
+`POST /api/auth/google/` (público) — corpo `{"credential": "<ID token do GIS>"}`, resposta `{"access": "...", "refresh": "..."}`.
+
+- Conta Google já vinculada (pelo `sub`, nunca pelo e-mail): entra nela.
+- Conta nova: cria o usuário com o e-mail verificado e o nome do Google, **sem senha** (só entra pelo Google),
+  no grupo padrão e sem nenhum privilégio extra.
+- E-mail já usado por uma conta sem Google: **409 `account_link_required`**. A conta não é tomada; a pessoa
+  entra com e-mail e senha e vincula o Google pelo endpoint abaixo.
+
+`POST /api/auth/google/link/` (exige `Authorization: Bearer <access do Fluxo>`) — mesmo corpo; vincula a conta
+Google à conta logada e responde `{"linked": true, "email": "..."}`. Repetir com a mesma conta Google é inofensivo.
+`GET /api/auth/google/link/` diz se há vínculo: `{"linked": false, "email": null}`.
+
+Desvincular não existe no MVP: quem criou a conta pelo Google não tem senha e ficaria sem como entrar.
+
+### Erros (`{"detail": "...", "code": "..."}`)
+
+| Status | `code` | Quando | O frontend deve |
+| --- | --- | --- | --- |
+| 400 | — | Falta `credential` | Corrigir a chamada |
+| 401 | `invalid_google_token` | Token inválido, expirado ou de outro app | Pedir para entrar com o Google de novo |
+| 403 | `google_email_not_verified` | Conta Google sem e-mail verificado | Mostrar a mensagem |
+| 403 | `inactive_account` | Conta Fluxo desativada | Mostrar a mensagem |
+| 409 | `account_link_required` | E-mail já cadastrado sem Google (login) | Levar ao login com senha e depois vincular |
+| 409 | `google_account_in_use` | Conta Google já é de outro usuário (vincular) | Mostrar a mensagem |
+| 409 | `already_linked` | Usuário já tem outra conta Google (vincular) | Mostrar a mensagem |
+| 503 | `google_unavailable` | Google fora do ar ao validar | Tentar de novo depois |
+| 503 | `google_auth_unavailable` | `GOOGLE_CLIENT_ID` não configurado | Esconder o botão do Google |
+
+### Notas para o frontend
+
+- Carregue `https://accounts.google.com/gsi/client`, chame `google.accounts.id.initialize({ client_id, callback })`
+  e envie `response.credential` para `/api/auth/google/` (ou `/link/`, com o Bearer do Fluxo).
+- Guarde e use só o `access`/`refresh` devolvidos pelo backend, exatamente como no login por senha.
+- Se a página tiver `Cross-Origin-Opener-Policy`, use `same-origin-allow-popups` para o popup do Google funcionar.
+
+### Produção
+
+Com `DEBUG=False` o backend exige HTTPS: redireciona `http` → `https` (respeitando `X-Forwarded-Proto` do proxy),
+cookies só por HTTPS e HSTS (`SECURE_HSTS_SECONDS`, padrão 3600; aumente para `31536000` depois de validar).
+Mantenha `CORS_ALLOWED_ORIGINS` só com as origens oficiais do frontend e `CORS_ALLOW_ALL_ORIGINS` desligado.

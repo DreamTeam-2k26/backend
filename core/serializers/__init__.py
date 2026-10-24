@@ -13,6 +13,13 @@ from .column import (
 from .comment import CommentCreateUpdateSerializer, CommentListSerializer, CommentRetrieveSerializer
 from .file import FileCreateUpdateSerializer, FileListSerializer, FileRetrieveSerializer
 from .folder import FolderCreateUpdateSerializer, FolderListSerializer, FolderRetrieveSerializer
+from .google_auth import (
+    GoogleAuthErrorSerializer,
+    GoogleLinkSerializer,
+    GoogleLinkStatusSerializer,
+    GoogleLoginSerializer,
+    GoogleTokenPairSerializer,
+)
 from .group import GroupSerializer, GroupUsersSerializer
 from .invite import (
     InviteAcceptSerializer,
