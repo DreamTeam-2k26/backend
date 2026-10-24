@@ -40,7 +40,7 @@ class MembershipViewSet(ListModelMixin, RetrieveModelMixin, UpdateModelMixin, De
             Membership.objects
             .filter(project__memberships__user=user)
             .annotate(my_role=Subquery(my_role))
-            .select_related('user', 'project')
+            .select_related('user__profile_picture', 'project')
             .order_by('project_id', 'joined_at')
         )
 

@@ -11,7 +11,7 @@ def attached_files(task):
     return (
         File.objects
         .filter(task_links__task=task)
-        .select_related('uploaded_by')
+        .select_related('uploaded_by__profile_picture')
         .order_by('task_links__attached_at', 'task_links__id')
     )
 

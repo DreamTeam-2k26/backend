@@ -56,7 +56,7 @@ class FileViewSet(ModelViewSet):
             File.objects
             .filter(project__in=my_projects)
             .annotate(my_role=Subquery(my_role))
-            .select_related('folder', 'uploaded_by')
+            .select_related('folder', 'uploaded_by__profile_picture')
             .order_by(Lower('name'), 'id')
         )
 
