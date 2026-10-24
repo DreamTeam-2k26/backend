@@ -1,3 +1,5 @@
+from .brainstorm_reply import BrainstormReplyViewSet
+from .brainstorm_topic import BrainstormTopicViewSet
 from .checklist_item import ChecklistItemViewSet
 from .column import ColumnViewSet
 from .comment import CommentViewSet

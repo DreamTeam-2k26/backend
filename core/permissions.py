@@ -258,3 +258,50 @@ class IsSuperuser(BasePermission):
         user = request.user
 
         return bool(user and user.is_authenticated and user.is_superuser)
+
+
+class BrainstormTopicPermission(BasePermission):
+    """Brainstorm: qualquer participante lê, cria e vota; editar é do autor; excluir é do autor ou de dono/admin.
+
+    Encerrar, reabrir, arquivar, pedir a análise da IA e aprovar a decisão: somente dono ou administrador.
+    Usa o ``my_role`` que a BrainstormTopicViewSet anota em cada discussão (papel do usuário logado no projeto).
+    """
+
+    message = 'Seu papel no projeto não permite executar esta ação na discussão.'
+    manager_actions = frozenset({'close', 'reopen', 'archive', 'analyze', 'approve'})
+
+    def has_object_permission(self, request, view, obj):
+        is_manager = obj.my_role in {Membership.Role.OWNER, Membership.Role.ADMIN}
+        is_author = obj.author_id is not None and obj.author_id == request.user.pk
+
+        if view.action in self.manager_actions:
+            return is_manager
+
+        if view.action in {'update', 'partial_update'}:
+            return is_author
+
+        if view.action == 'destroy':
+            return is_author or is_manager
+
+        return True
+
+
+class BrainstormReplyPermission(BasePermission):
+    """Respostas do Brainstorm: qualquer participante lê, responde e vota; editar é só do autor; excluir é do autor
+    ou de dono/administrador (moderação).
+
+    Usa o ``my_role`` que a BrainstormReplyViewSet anota em cada resposta (papel do usuário logado no projeto).
+    """
+
+    message = 'Só o autor pode alterar esta resposta.'
+
+    def has_object_permission(self, request, view, obj):
+        is_author = obj.author_id is not None and obj.author_id == request.user.pk
+
+        if view.action in {'update', 'partial_update'}:
+            return is_author
+
+        if view.action == 'destroy':
+            return is_author or obj.my_role in {Membership.Role.OWNER, Membership.Role.ADMIN}
+
+        return True

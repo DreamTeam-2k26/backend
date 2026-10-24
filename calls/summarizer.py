@@ -1,24 +1,20 @@
 """Resumo da reunião por IA (opcional).
 
-Só funciona com `ANTHROPIC_API_KEY` no ambiente/.env; sem ela a transcrição continua normal e o botão de resumo
-fica desligado. Usa a API de mensagens da Anthropic por HTTPS puro (urllib), sem dependência nova.
+Só funciona com `AI_API_KEY` no ambiente/.env; sem ela a transcrição continua normal e o botão de resumo
+fica desligado. A chamada HTTP fica no cliente compartilhado core.ai.
 O texto da reunião é entregue ao modelo como DADO: qualquer instrução dita na reunião não deve ser seguida.
 """
 
-import json
 import os
-import urllib.error
-import urllib.request
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
+from core import ai
+
 from . import transcription
 
-API_URL = 'https://api.anthropic.com/v1/messages'
-API_VERSION = '2023-06-01'
-DEFAULT_MODEL = 'claude-sonnet-5-5'
 TIMEOUT_SECONDS = 90
 MAX_TRANSCRIPT_CHARS = 60_000
 MAX_OUTPUT_TOKENS = 2000
@@ -38,11 +34,11 @@ class SummaryUnavailableError(Exception):
 
 
 def api_key():
-    return getattr(settings, 'ANTHROPIC_API_KEY', None) or os.environ.get('ANTHROPIC_API_KEY', '')
+    return ai.api_key()
 
 
 def model_name():
-    return getattr(settings, 'CALL_SUMMARY_MODEL', None) or os.environ.get('CALL_SUMMARY_MODEL') or DEFAULT_MODEL
+    return getattr(settings, 'CALL_SUMMARY_MODEL', None) or os.environ.get('CALL_SUMMARY_MODEL') or ai.default_model()
 
 
 def is_available():
@@ -56,32 +52,18 @@ def build_prompt(call, text):
 
 
 def request_summary(prompt):
-    body = json.dumps({
-        'model': model_name(),
-        'max_tokens': MAX_OUTPUT_TOKENS,
-        'system': SYSTEM_PROMPT,
-        'messages': [{'role': 'user', 'content': prompt}],
-    }).encode()
-    request = urllib.request.Request(  # noqa: S310 - URL fixa https
-        API_URL,
-        data=body,
-        method='POST',
-        headers={'content-type': 'application/json', 'x-api-key': api_key(), 'anthropic-version': API_VERSION},
-    )
-
     try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:  # noqa: S310
-            data = json.loads(response.read())
-    except (urllib.error.URLError, TimeoutError, ValueError) as error:
+        return ai.complete(
+            system=SYSTEM_PROMPT,
+            prompt=prompt,
+            model=model_name(),
+            max_tokens=MAX_OUTPUT_TOKENS,
+            timeout=TIMEOUT_SECONDS,
+        )
+    except ai.AINotConfigured as error:
+        raise SummaryUnavailableError('Resumo por IA não configurado neste servidor.') from error
+    except ai.AIError as error:
         raise SummaryUnavailableError('Não foi possível gerar o resumo agora. Tente novamente.') from error
-
-    parts = [block.get('text', '') for block in data.get('content', []) if block.get('type') == 'text']
-    text = '\n'.join(part for part in parts if part).strip()
-
-    if not text:
-        raise SummaryUnavailableError('O serviço de resumo não devolveu texto. Tente novamente.')
-
-    return text
 
 
 def summarize(call):

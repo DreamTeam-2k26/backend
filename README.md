@@ -44,6 +44,7 @@ Todas estão documentadas em [`.env.example`](.env.example). Os principais compo
 - `DEBUG=False` exige `SECRET_KEY` e ativa o whitenoise com manifest (rode `python manage.py collectstatic`).
 - `CHAT_MAX_UPLOAD_MB` (padrão 10) limita o tamanho dos anexos do chat.
 - `CALL_MAX_PARTICIPANTS` (padrão 8) limita as pessoas por chamada; `CALL_ICE_SERVERS` (JSON) troca os servidores STUN/TURN das chamadas (veja [Chamadas](#chamadas)).
+- `AI_API_KEY` liga a IA (resumo de reuniões e síntese do Brainstorm). Padrão **gratuito**: OpenRouter (`AI_API_URL`) com `AI_MODEL=google/gemma-4-31b-it:free`. Sem `AI_ALLOW_PAID=true`, o servidor recusa qualquer modelo que não termine em `:free` (ou `openrouter/free`), para não haver cobrança. `BRAINSTORM_AI_MODEL` e `CALL_SUMMARY_MODEL` trocam o modelo de cada uso. Sem chave, só as ações de IA respondem 503.
 - Sem `DATABASE_URL` usa SQLite; sem `REDIS_URL` usa a camada do Channels em memória; sem `CLOUDINARY_URL` grava uploads em `media/`.
 
 ## Estrutura
@@ -53,6 +54,7 @@ Todas estão documentadas em [`.env.example`](.env.example). Os principais compo
 - `uploader/` — upload de imagens (JPEG/PNG) e documentos (PDF)
 - `chat/` — chat em tempo real em salas coletivas (REST + WebSocket); veja a seção [Chat](#chat)
 - `calls/` — chamadas de voz e vídeo dos projetos (REST + WebSocket de sinalização); veja a seção [Chamadas](#chamadas)
+- `core/` também tem o fórum do [Brainstorm](#brainstorm) (discussões, votos, síntese por IA e decisões)
 
 ## Endpoints
 
@@ -120,6 +122,61 @@ App `calls/` (independente de `core.Meeting`, que guarda reuniões com link exte
 - **WebSocket `ws://host/ws/calls/<id>/?token=<access>`:** a sala. Servidor → cliente: `welcome`, `peer.joined`, `peer.left`, `peer.state`, `signal`, `call.ended`, `replaced`, `error`. Cliente → servidor: `{"action": "signal", "to": <id>, "data": {...}}`, `{"action": "state", "state": {...}}`, `{"action": "leave"}`. Entrar de outra aba assume o lugar da anterior.
 - **Rede:** por padrão usa STUN público do Google. Em redes restritas (firewall corporativo, NAT simétrico) a conexão direta pode falhar: configure um servidor TURN em `CALL_ICE_SERVERS`, por exemplo `[{"urls":"turn:turn.exemplo.com:3478","username":"u","credential":"s"}]`.
 - **Limitações:** malha limita o tamanho da chamada (padrão 8 pessoas); não grava nem transcreve; o aviso na hora marcada é do navegador aberto (não há tarefa agendada no servidor).
+
+## Brainstorm
+
+Fórum privado de cada projeto (`core/`): discussões, respostas encadeadas, votos ±1, encerramento, síntese por IA e decisão aprovada por dono/administrador, que pode criar ou vincular tarefas do Kanban. Só participantes atuais acessam; projeto ou discussão alheia responde 404.
+
+- **Status da discussão:** `open` (Em discussão) → `close/` → `closed` → `analyze/` → `approve/` → `decided`. `reopen/` volta para `open` e soma 1 em `cycle` (nova versão); a decisão anterior continua vigente com `in_review: true` até a próxima aprovação. `archive/` é definitivo (somente leitura). Discussão sem respostas, votos, análise ou decisão pode ser excluída; com interações, arquive.
+- **Quem pode:** qualquer participante lê, abre discussão, responde e vota (com a discussão aberta); o autor edita o próprio conteúdo; autor, dono ou administrador excluem; só dono/administrador encerram, reabrem, arquivam, pedem a análise e aprovam.
+- **Limites:** título até 150 caracteres; resposta até 5000; resposta com respostas filhas não pode ser excluída.
+
+| Método | Rota | Observação |
+| --- | --- | --- |
+| GET/POST | `/api/brainstorm-topics/` | Filtros `?project=`, `?category=` (`ideas`, `questions`, `planning`, `decisions`), `?status=`; `?search=`; `?ordering=-created_at\|-score\|-replies_count` |
+| GET/PATCH/DELETE | `/api/brainstorm-topics/{id}/` | Detalhe traz `current_decision` |
+| POST | `/api/brainstorm-topics/{id}/vote/` e `/api/brainstorm-replies/{id}/vote/` | `{"value": 1 \| -1 \| 0}` (0 remove) → `{"score", "upvotes", "downvotes", "my_vote"}` |
+| POST | `/api/brainstorm-topics/{id}/close/`, `reopen/`, `archive/` | Dono/administrador |
+| GET/POST | `/api/brainstorm-replies/` | `?topic=`; `parent` opcional (mesma discussão) monta a thread |
+| PATCH/DELETE | `/api/brainstorm-replies/{id}/` | Autor (excluir: também dono/administrador) |
+| POST | `/api/brainstorm-topics/{id}/analyze/` | Síntese da IA (discussão encerrada) |
+| GET | `/api/brainstorm-topics/{id}/analysis/` | Análise mais recente do ciclo atual |
+| GET | `/api/brainstorm-topics/{id}/versions/` | Análises e decisão de cada ciclo |
+| POST | `/api/brainstorm-topics/{id}/approve/` | Aprova a decisão e cria/vincula tarefas |
+
+### Síntese por IA
+
+- **Variáveis:** `AI_API_KEY` (crie em https://openrouter.ai → Keys; a mesma do resumo de reuniões), `AI_API_URL` (padrão OpenRouter), `AI_MODEL`/`BRAINSTORM_AI_MODEL` (padrão `google/gemma-4-31b-it:free`, gratuito) e `AI_ALLOW_PAID` (padrão desligado: modelos pagos são bloqueados antes de qualquer chamada). `AI_FALLBACK_MODELS` (vírgula; padrão `nvidia/nemotron-3-ultra-550b-a55b:free`) lista reservas gratuitas tentadas em ordem quando o modelo principal está congestionado (429) ou fora do ar. Evite `openrouter/free`: o roteador pode escolher um modelo que não serve para síntese (ex.: classificador de segurança). Modelos gratuitos têm limite de pedidos por minuto/dia; ao estourar, `analyze/` responde 503 `ai_unavailable`. A chave fica só no servidor (no deploy, nas variáveis de ambiente da hospedagem).
+- Roda na hora, só quando dono/administrador pede (nunca ao criar, editar ou votar), com até 60 s, contexto até 40 000 caracteres (as respostas mais votadas primeiro) e até 200 tarefas do projeto para apontar duplicatas.
+- O texto dos participantes vai ao modelo como dado não confiável. A resposta é validada antes de ser gravada: `sources` só com ids de respostas reais, `existing_task_id` só de tarefas do projeto, prioridade fora de `low|medium|high` vira `medium`.
+- Resultado (`result`): `main_solution`, `reasoning`, `alternatives[]` (`title`, `description`, `sources`), `sources[]`, `ai_additions[]` (ideias da IA, não dos participantes) e `task_suggestions[]` (`title`, `description`, `priority`, `existing_task_id`, `sources`).
+- **Erros** (`{"detail", "code", "analysis"?}`): 503 `ai_not_configured` (sem chave; nada é gravado), 503 `ai_unavailable` e 502 `ai_invalid_response` (a análise fica gravada como `failed`). O fórum continua funcionando.
+- O cliente HTTP da IA (formato de chat compatível com a OpenAI) fica em `core/ai.py` e é compartilhado com `calls/summarizer.py`.
+
+### Aprovação
+
+```json
+POST /api/brainstorm-topics/12/approve/
+{
+  "analysis": 7,
+  "text": "Faremos robótica sustentável.",
+  "justification": "Proposta mais votada.",
+  "tasks": [
+    {"suggestion_index": 0, "title": "Montar protótipo", "description": "Com sucata", "priority": "high",
+     "assignee": 3, "due_date": "2026-11-01"},
+    {"existing_task_id": 42}
+  ]
+}
+```
+
+- Exige a discussão encerrada e uma análise `ready` do ciclo atual. Tarefa nova vai para a primeira coluna "A fazer" com as regras do Kanban (responsável participante, prazo a partir de hoje); `existing_task_id` só vincula (a tarefa não muda). `tasks` vazio não cria nada.
+- Tudo numa transação: um item inválido desfaz a aprovação inteira. Reenviar com a mesma análise devolve 200 com a decisão já gravada (sem duplicar tarefas); outra análise no mesmo ciclo responde 409.
+- Decisões aprovadas não têm edição (histórico imutável); reabrir ou aprovar uma versão nova não altera tarefas anteriores.
+
+### Testar
+
+- `pdm run python manage.py test core.tests.test_brainstorm_models core.tests.test_brainstorm_topic_api core.tests.test_brainstorm_reply_api core.tests.test_brainstorm_analysis_api core.tests.test_brainstorm_decision_api core.tests.test_ai` (a IA é simulada; não precisa de chave).
+- Sem `AI_API_KEY`, `POST analyze/` responde 503 `ai_not_configured`. Com a chave no `.env`, reinicie o servidor e use o Swagger (`/api/doc/`).
 
 ## Perfil do usuário
 

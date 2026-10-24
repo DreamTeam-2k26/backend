@@ -8,6 +8,11 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
 from core.models import (
+    BrainstormAnalysis,
+    BrainstormDecision,
+    BrainstormDecisionTask,
+    BrainstormReply,
+    BrainstormTopic,
     ChecklistItem,
     Column,
     Comment,
@@ -245,3 +250,45 @@ class GoogleIdentityAdmin(admin.ModelAdmin):
     raw_id_fields = ('user',)
     # O vínculo é criado só pelo fluxo autenticado da API; aqui dá para consultar ou remover.
     readonly_fields = ('user', 'google_sub', 'email', 'picture', 'picture_url', 'created_at', 'last_login_at')
+
+
+class BrainstormReplyInline(admin.TabularInline):
+    model = BrainstormReply
+    extra = 0
+    fields = ('author', 'parent', 'content', 'created_at')
+    readonly_fields = ('created_at',)
+    raw_id_fields = ('author', 'parent')
+
+
+@admin.register(BrainstormTopic)
+class BrainstormTopicAdmin(admin.ModelAdmin):
+    list_display = ('title', 'project', 'category', 'status', 'cycle', 'author', 'created_at')
+    list_filter = ('status', 'category')
+    search_fields = ('title', 'context', 'project__name')
+    ordering = ('-created_at',)
+    raw_id_fields = ('project', 'author', 'current_decision')
+    inlines = [BrainstormReplyInline]
+
+
+@admin.register(BrainstormAnalysis)
+class BrainstormAnalysisAdmin(admin.ModelAdmin):
+    list_display = ('id', 'topic', 'cycle', 'status', 'model', 'created_at', 'finished_at')
+    list_filter = ('status',)
+    search_fields = ('topic__title',)
+    ordering = ('-created_at',)
+    raw_id_fields = ('topic', 'requested_by')
+
+
+class BrainstormDecisionTaskInline(admin.TabularInline):
+    model = BrainstormDecisionTask
+    extra = 0
+    raw_id_fields = ('task',)
+
+
+@admin.register(BrainstormDecision)
+class BrainstormDecisionAdmin(admin.ModelAdmin):
+    list_display = ('topic', 'cycle', 'approved_by', 'approved_at')
+    search_fields = ('topic__title', 'text')
+    ordering = ('-approved_at',)
+    raw_id_fields = ('topic', 'analysis', 'approved_by')
+    inlines = [BrainstormDecisionTaskInline]
