@@ -5,13 +5,15 @@
 
 /ws/calls/<id>/ (CallRoomConsumer): a sala da chamada e a sinalização WebRTC.
 Servidor -> cliente (`type`):
-    welcome      {you, peers: [{user, name, avatar, state}], ice_servers, max_participants}
+    welcome      {you, peers: [{user, name, avatar, state}], ice_servers, max_participants, transcription}
     peer.joined  {peer}            peer.left {user}            peer.state {user, state}
     signal       {from, data}      (oferta/resposta SDP ou candidato ICE, repassados sem interpretar)
     call.ended   {}                replaced {}  (entrou de outra aba)           error {message}
+    transcription.changed {enabled, by}      transcript.segment {segment: {id, user, name, text, offset_ms, ...}}
 Cliente -> servidor (`action`):
     {"action": "signal", "to": <id>, "data": {...}}
     {"action": "state",  "state": {"mic": true, "camera": false, "screen": false, "hand": false}}
+    {"action": "transcript", "text": "...", "client_id": "...", "duration_ms": 1800}  (só com a transcrição ligada)
     {"action": "leave"}
 
 A identidade vem do token; o cliente nunca informa "quem sou eu". Participação no projeto e chamada
@@ -20,14 +22,17 @@ em andamento são conferidas na entrada; a sinalização só chega a quem está 
 
 import json
 import logging
+import time
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.core.exceptions import PermissionDenied, ValidationError
+from rest_framework.renderers import JSONRenderer
 
 from chat.serializers.user import display_name
 
-from . import conf, realtime, services
+from . import conf, realtime, services, transcription
+from .serializers import TranscriptSegmentSerializer
 
 logger = logging.getLogger('calls')
 
@@ -37,6 +42,8 @@ CLOSE_ENDED = 4410
 CLOSE_REPLACED = 4409
 MAX_FRAME_SIZE = 64 * 1024  # uma oferta SDP com vários vídeos passa de 10 KB; acima disso é abuso
 MAX_ID = 2**63
+SEGMENT_WINDOW = 10.0  # segundos
+SEGMENT_LIMIT = 20  # falas aceitas por conexão nessa janela: fala humana não chega perto, abuso sim
 
 
 def _error_text(error):
@@ -88,6 +95,7 @@ class CallRoomConsumer(AsyncWebsocketConsumer):
         self.user = user
         self.call_id = int(self.scope['url_route']['kwargs']['call_id'])
         self.joined = False
+        self.segment_times = []
         self.group = realtime.room_group(self.call_id)
 
         if not 0 < self.call_id < MAX_ID:
@@ -118,6 +126,7 @@ class CallRoomConsumer(AsyncWebsocketConsumer):
             'peers': peers,
             'ice_servers': conf.ice_servers(),
             'max_participants': conf.max_participants(),
+            'transcription': await database_sync_to_async(transcription.is_active)(self.call_id),
         })
         me = await self._peer(participant)
         await self.channel_layer.group_send(
@@ -161,6 +170,8 @@ class CallRoomConsumer(AsyncWebsocketConsumer):
             await self._relay_signal(payload)
         elif action == 'state':
             await self._update_state(payload.get('state'))
+        elif action == 'transcript':
+            await self._add_segment(payload)
         elif action == 'leave':
             await self._depart()
             await self.close()
@@ -182,6 +193,33 @@ class CallRoomConsumer(AsyncWebsocketConsumer):
             self.group, {'type': 'peer.state', 'user': self.user.pk, 'state': state, 'sender': self.channel_name}
         )
 
+    async def _add_segment(self, payload):
+        if not self._within_segment_limit():
+            return
+
+        segment = await database_sync_to_async(self._save_segment)(payload)
+
+        if segment is not None:
+            await self.channel_layer.group_send(self.group, {'type': 'transcript.segment', 'segment': segment})
+
+    def _within_segment_limit(self):
+        now = time.monotonic()
+        self.segment_times = [moment for moment in self.segment_times if now - moment < SEGMENT_WINDOW]
+
+        if len(self.segment_times) >= SEGMENT_LIMIT:
+            return False
+
+        self.segment_times.append(now)
+
+        return True
+
+    def _save_segment(self, payload):
+        segment = transcription.add_segment(
+            self.call_id, self.user, payload.get('text'), payload.get('client_id'), payload.get('duration_ms')
+        )
+
+        return None if segment is None else json.loads(JSONRenderer().render(TranscriptSegmentSerializer(segment).data))
+
     # Eventos do grupo -> cliente
 
     async def signal(self, event):
@@ -199,6 +237,12 @@ class CallRoomConsumer(AsyncWebsocketConsumer):
     async def peer_state(self, event):
         if event['sender'] != self.channel_name:
             await self._send({'type': 'peer.state', 'user': event['user'], 'state': event['state']})
+
+    async def transcription_changed(self, event):
+        await self._send({'type': 'transcription.changed', 'enabled': event['enabled'], 'by': event['by']})
+
+    async def transcript_segment(self, event):
+        await self._send({'type': 'transcript.segment', 'segment': event['segment']})
 
     async def call_ended(self, event):
         await self._send({'type': 'call.ended'})

@@ -88,7 +88,9 @@ class CallApiTests(APITestCase):
 
     def test_chamada_de_outro_projeto_da_404(self):
         call = scheduled_call(self.project, self.owner)
-        self.assertEqual(client_for(self.outsider).get(f'{URL}{call.pk}/').status_code, 404)
+        response = client_for(self.outsider).get(f'{URL}{call.pk}/')
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.data['detail'], 'Chamada não encontrada.')
         self.assertEqual(client_for(self.outsider).post(f'{URL}{call.pk}/start/').status_code, 404)
 
     def test_exige_login_e_config(self):

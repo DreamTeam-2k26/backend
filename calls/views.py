@@ -1,6 +1,8 @@
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Count, Q
+from django.db.models import Count, IntegerField, OuterRef, Q, Subquery
+from django.db.models.functions import Coalesce
+from django.http import Http404
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import mixins, status
@@ -13,9 +15,16 @@ from rest_framework.viewsets import GenericViewSet
 
 from core.models import Membership, Project
 
-from . import conf, realtime, services
-from .models import Call
-from .serializers import CallCreateSerializer, CallSerializer, CallUpdateSerializer
+from . import conf, realtime, services, summarizer
+from . import transcription as transcription_rules
+from .models import Call, TranscriptSegment
+from .serializers import (
+    CallCreateSerializer,
+    CallSerializer,
+    CallUpdateSerializer,
+    TranscriptionToggleSerializer,
+    TranscriptSegmentSerializer,
+)
 
 
 def _run(function, *args, **kwargs):
@@ -60,14 +69,26 @@ class CallViewSet(
     def get_queryset(self):
         projects = Membership.objects.filter(user=self.request.user).values('project')
         services.end_stale_calls()
+        segments = (
+            TranscriptSegment.objects.filter(call=OuterRef('pk')).order_by().values('call').annotate(total=Count('pk'))
+        )
 
         return (
             Call.objects
             .filter(project__in=projects)
             .select_related('project', 'created_by')
-            .annotate(active_count=Count('participants', filter=Q(participants__left_at__isnull=True)))
+            .annotate(
+                active_count=Count('participants', filter=Q(participants__left_at__isnull=True)),
+                segments_total=Coalesce(Subquery(segments.values('total'), output_field=IntegerField()), 0),
+            )
             .order_by('-created_at', '-id')
         )
+
+    def get_object(self):
+        try:
+            return super().get_object()
+        except Http404 as error:
+            raise NotFound('Chamada não encontrada.') from error
 
     def get_serializer_class(self):
         return {'create': CallCreateSerializer, 'partial_update': CallUpdateSerializer}.get(self.action, CallSerializer)
@@ -146,3 +167,49 @@ class CallViewSet(
     @action(detail=False, methods=['get'])
     def config(self, request):
         return Response({'ice_servers': conf.ice_servers(), 'max_participants': conf.max_participants()})
+
+    @extend_schema(
+        summary='Ligar/desligar a transcrição durante a chamada (dono/administrador)',
+        request=TranscriptionToggleSerializer,
+        responses={200: CallSerializer},
+    )
+    @action(detail=True, methods=['post'])
+    def transcription(self, request, pk=None):
+        call = self.get_object()
+        serializer = TranscriptionToggleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        _run(transcription_rules.set_enabled, call, request.user, serializer.validated_data['enabled'])
+        realtime.broadcast_transcription_changed(call, request.user.pk)
+        realtime.broadcast_call_changed(call)
+
+        return Response(self._out(call))
+
+    @extend_schema(summary='Transcrição da reunião (?after=<id> devolve só as falas novas)', responses={200: dict})
+    @action(detail=True, methods=['get'])
+    def transcript(self, request, pk=None):
+        call = self.get_object()
+        after = request.query_params.get('after', '0')
+        after = int(after) if after.isdigit() else 0
+        segments = TranscriptSegmentSerializer(transcription_rules.segments_for(call, after), many=True).data
+
+        return Response({
+            'call': call.pk,
+            'transcription_on': call.transcription_on and call.status == Call.Status.LIVE,
+            'segments': segments,
+            'summary': call.summary,
+            'summary_at': call.summary_at,
+            'summary_available': summarizer.is_available(),
+        })
+
+    @extend_schema(summary='Gerar o resumo da reunião com IA (dono/administrador)', request=None, responses={200: dict})
+    @action(detail=True, methods=['post'])
+    def summary(self, request, pk=None):
+        call = self.get_object()
+        _run(services.require_manager, request.user, call.project_id)
+
+        try:
+            _run(summarizer.summarize, call)
+        except summarizer.SummaryUnavailableError as error:
+            return Response({'detail': str(error)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        return Response({'summary': call.summary, 'summary_at': call.summary_at})
