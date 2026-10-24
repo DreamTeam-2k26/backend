@@ -244,4 +244,4 @@ class GoogleIdentityAdmin(admin.ModelAdmin):
     ordering = ('-created_at',)
     raw_id_fields = ('user',)
     # O vínculo é criado só pelo fluxo autenticado da API; aqui dá para consultar ou remover.
-    readonly_fields = ('user', 'google_sub', 'email', 'created_at', 'last_login_at')
+    readonly_fields = ('user', 'google_sub', 'email', 'picture', 'picture_url', 'created_at', 'last_login_at')

@@ -164,7 +164,7 @@ Sem `GOOGLE_CLIENT_ID`, o login tradicional continua normal, `/api/auth/google/`
 `POST /api/auth/google/` (público) — corpo `{"credential": "<ID token do GIS>"}`, resposta `{"access": "...", "refresh": "..."}`.
 
 - Conta Google já vinculada (pelo `sub`, nunca pelo e-mail): entra nela.
-- Conta nova: cria o usuário com o e-mail verificado e o nome do Google, **sem senha** (só entra pelo Google),
+- Conta nova: cria o usuário com o e-mail verificado, o nome e a foto do Google, **sem senha** (só entra pelo Google),
   no grupo padrão e sem nenhum privilégio extra.
 - E-mail já usado por uma conta sem Google: **409 `account_link_required`**. A conta não é tomada; a pessoa
   entra com e-mail e senha e vincula o Google pelo endpoint abaixo.
@@ -201,3 +201,12 @@ Desvincular não existe no MVP: quem criou a conta pelo Google não tem senha e 
 Com `DEBUG=False` o backend exige HTTPS: redireciona `http` → `https` (respeitando `X-Forwarded-Proto` do proxy),
 cookies só por HTTPS e HSTS (`SECURE_HSTS_SECONDS`, padrão 3600; aumente para `31536000` depois de validar).
 Mantenha `CORS_ALLOWED_ORIGINS` só com as origens oficiais do frontend e `CORS_ALLOW_ALL_ORIGINS` desligado.
+
+### Foto de perfil vinda do Google
+
+No login e ao vincular, a foto da conta Google (`picture` do token) vira a foto de perfil **se a pessoa não tiver
+escolhido outra no Fluxo**. Ela é baixada uma vez (256px, só JPEG/PNG de `https://*.googleusercontent.com`, sem
+seguir redirecionamentos, até `MAX_UPLOAD_SIZE`) e guardada como a foto enviada pelo uploader, então aparece em
+todo lugar que já mostra foto. Se o Google mudar a foto, ela é atualizada no próximo login — a não ser que a pessoa
+tenha enviado outra. Se a pessoa remover a foto do Google, ela só volta quando o Google tiver uma foto nova.
+Falha ao baixar nunca impede o login.
