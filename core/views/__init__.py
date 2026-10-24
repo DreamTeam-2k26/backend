@@ -3,6 +3,7 @@ from .column import ColumnViewSet
 from .comment import CommentViewSet
 from .file import FileViewSet
 from .folder import FolderViewSet
+from .google_auth import GoogleLinkView, GoogleLoginView
 from .group import GroupViewSet
 from .invite import InviteViewSet
 from .meeting import MeetingViewSet
