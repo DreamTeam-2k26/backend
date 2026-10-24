@@ -219,6 +219,6 @@ class TaskMoveSerializer(Serializer):
             .filter(column_id__in=column_ids)
             .with_checklist_counts()
             .with_comment_count()
-            .select_related('column', 'assignee')
+            .select_related('column', 'assignee__profile_picture')
             .order_by('column__position', 'position', 'id')
         )

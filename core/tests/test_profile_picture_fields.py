@@ -102,3 +102,47 @@ class ProfilePictureQueryCountTests(TempMediaMixin, APITestCase):
             self.add_member_with_task(index)
         after = {url: self.count(url) for url in (MEMBERSHIPS, TASKS, FILES)}
         self.assertEqual(after, before)
+
+
+class TaskFlowsProfilePictureQueryCountTests(TempMediaMixin, APITestCase):
+    """Mover tarefa e anexos da tarefa também trazem a foto na mesma consulta (sem N+1)."""
+
+    def setUp(self):
+        self.owner = with_picture(make_user('dono-fluxos'))
+        self.project = make_project(self.owner)
+        self.column = Column.objects.filter(project=self.project).first()
+        self.task = Task.objects.create(project=self.project, column=self.column, title='Hub', created_by=self.owner)
+        self.client_owner = client_for(self.owner)
+
+    def add_assignee_and_attachment(self, index):
+        user = with_picture(make_user(f'autor-{index}'))
+        self.project.memberships.create(user=user, role='member')
+        Task.objects.create(project=self.project, column=self.column, title=f'T{index}', assignee=user, created_by=user)
+        upload = SimpleUploadedFile(f'a{index}.pdf', b'%PDF-1.4\n%%EOF\n', content_type='application/pdf')
+        uploaded = client_for(user).post(FILES, {'project': self.project.pk, 'file': upload}, format='multipart')
+        file_id = uploaded.data['id']
+        response = self.client_owner.post(f'{TASKS}{self.task.pk}/files/', {'file': file_id}, format='json')
+        self.assertEqual(response.status_code, 201)
+
+    def counts(self):
+        requests = {
+            'move': lambda: self.client_owner.post(
+                f'{TASKS}{self.task.pk}/move/', {'column_id': self.column.pk, 'position': 0}, format='json'
+            ),
+            'detail': lambda: self.client_owner.get(f'{TASKS}{self.task.pk}/'),
+            'files': lambda: self.client_owner.get(f'{TASKS}{self.task.pk}/files/'),
+        }
+        result = {}
+        for name, request in requests.items():
+            with CaptureQueriesContext(connection) as queries:
+                response = request()
+            self.assertEqual(response.status_code, 200, name)
+            result[name] = len(queries)
+        return result
+
+    def test_move_and_task_files_do_not_query_once_per_picture(self):
+        self.add_assignee_and_attachment(1)
+        before = self.counts()
+        for index in range(2, 5):
+            self.add_assignee_and_attachment(index)
+        self.assertEqual(self.counts(), before)
