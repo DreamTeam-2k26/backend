@@ -28,6 +28,10 @@ class Call(models.Model):
     started_at = models.DateTimeField(null=True, blank=True)
     ended_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    # Transcrição (ver transcription.py): ligada pelo dono/admin durante a chamada; o resumo é gerado depois.
+    transcription_on = models.BooleanField(default=False)
+    summary = models.TextField(blank=True, default='')
+    summary_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         verbose_name = 'Chamada'
@@ -66,3 +70,38 @@ class Participant(models.Model):
 
     def __str__(self):
         return f'{self.user_id} em {self.call_id}'
+
+
+class TranscriptSegment(models.Model):
+    """Uma fala transcrita. Cada navegador transcreve o próprio microfone, então o autor vem da conexão
+    (token), nunca do conteúdo da mensagem. `speaker_name` guarda o nome na hora, para o histórico não mudar.
+
+    `offset_ms` é o instante da fala em relação ao início da chamada; `client_id` evita duplicar uma fala
+    reenviada depois de uma queda de conexão.
+    """
+
+    call = models.ForeignKey(Call, related_name='segments', on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='call_segments', on_delete=models.SET_NULL, null=True, blank=True
+    )
+    speaker_name = models.CharField(max_length=150)
+    text = models.TextField()
+    offset_ms = models.PositiveIntegerField(default=0)
+    client_id = models.CharField(max_length=40, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Fala transcrita'
+        verbose_name_plural = 'Falas transcritas'
+        ordering = ('offset_ms', 'id')
+        indexes = [models.Index(fields=['call', 'id'], name='idx_segment_call')]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['call', 'user', 'client_id'],
+                condition=~Q(client_id=''),
+                name='uq_segment_client_id',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.speaker_name}: {self.text[:40]}'

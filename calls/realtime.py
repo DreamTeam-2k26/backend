@@ -45,6 +45,12 @@ def broadcast_call_changed(call, *, removed=False):
     transaction.on_commit(send)
 
 
+def broadcast_transcription_changed(call, user_id):
+    """Avisa quem está na sala que a transcrição foi ligada/desligada (e por quem)."""
+    event = {'type': 'transcription.changed', 'enabled': call.transcription_on, 'by': user_id}
+    transaction.on_commit(lambda: _send(room_group(call.pk), event))
+
+
 def broadcast_call_ended(call_id):
     """Fecha a sala: todos os conectados recebem `call.ended` e saem."""
     transaction.on_commit(lambda: _send(room_group(call_id), {'type': 'call.ended'}))

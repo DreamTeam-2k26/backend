@@ -3,7 +3,7 @@ from rest_framework import serializers
 from chat.serializers.user import display_name
 
 from . import services
-from .models import TITLE_MAX, Call
+from .models import TITLE_MAX, Call, TranscriptSegment
 
 
 def _person(user):
@@ -17,6 +17,8 @@ class CallSerializer(serializers.ModelSerializer):
     created_by = serializers.SerializerMethodField()
     participants_count = serializers.SerializerMethodField()
     can_manage = serializers.SerializerMethodField()
+    segments_count = serializers.SerializerMethodField()
+    has_summary = serializers.SerializerMethodField()
 
     class Meta:
         model = Call
@@ -34,6 +36,9 @@ class CallSerializer(serializers.ModelSerializer):
             'created_at',
             'participants_count',
             'can_manage',
+            'transcription_on',
+            'segments_count',
+            'has_summary',
         )
         read_only_fields = fields
 
@@ -44,6 +49,14 @@ class CallSerializer(serializers.ModelSerializer):
         counted = getattr(call, 'active_count', None)
 
         return counted if counted is not None else call.participants.filter(left_at__isnull=True).count()
+
+    def get_segments_count(self, call) -> int:
+        counted = getattr(call, 'segments_total', None)
+
+        return counted if counted is not None else call.segments.count()
+
+    def get_has_summary(self, call) -> bool:
+        return bool(call.summary)
 
     def get_can_manage(self, call) -> bool:
         request = self.context.get('request')
@@ -64,3 +77,19 @@ class CallUpdateSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=TITLE_MAX, required=False, allow_blank=True)
     description = serializers.CharField(required=False, allow_blank=True)
     scheduled_for = serializers.DateTimeField(required=False)
+
+
+class TranscriptionToggleSerializer(serializers.Serializer):
+    enabled = serializers.BooleanField()
+
+
+class TranscriptSegmentSerializer(serializers.ModelSerializer):
+    """Uma fala: quem (id e nome na hora), o quê e quando (ms desde o início da chamada)."""
+
+    user = serializers.IntegerField(source='user_id', read_only=True)
+    name = serializers.CharField(source='speaker_name', read_only=True)
+
+    class Meta:
+        model = TranscriptSegment
+        fields = ('id', 'user', 'name', 'text', 'offset_ms', 'created_at')
+        read_only_fields = fields
