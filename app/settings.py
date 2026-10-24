@@ -31,6 +31,20 @@ CSRF_TRUSTED_ORIGINS = env_list('CSRF_TRUSTED_ORIGINS', 'http://localhost:3000,h
 CORS_ALLOWED_ORIGINS = env_list('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')
 CORS_ALLOW_ALL_ORIGINS = env_bool('CORS_ALLOW_ALL_ORIGINS', default=DEBUG)
 
+# Produção (DEBUG=False) só por HTTPS. O Fabroku termina o TLS no proxy e informa o esquema original
+# em X-Forwarded-Proto. HSTS começa curto; aumente SECURE_HSTS_SECONDS (ex.: 31536000) depois de validar.
+if not (DEBUG or TESTING):
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = env_bool('SECURE_SSL_REDIRECT', default=True)
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '3600'))
+
+# Login com Google (Google Identity Services). Client ID do tipo "Aplicativo da Web" no Google Cloud; é
+# público (o frontend usa o mesmo). Não existe client secret neste fluxo. Vazio: /api/auth/google/ responde
+# 503 e o `manage.py check` avisa (core.W001) fora do DEBUG.
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '').strip()
+
 # Aplicações instaladas
 INSTALLED_APPS = [
     'daphne',

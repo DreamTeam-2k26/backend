@@ -13,6 +13,7 @@ from core.models import (
     Comment,
     File,
     Folder,
+    GoogleIdentity,
     Group,
     Invite,
     Meeting,
@@ -234,3 +235,13 @@ class FileAdmin(admin.ModelAdmin):
     ordering = ('-uploaded_at',)
     raw_id_fields = ('project', 'folder', 'uploaded_by')
     readonly_fields = ('file', 'size', 'mime_type', 'uploaded_at')
+
+
+@admin.register(GoogleIdentity)
+class GoogleIdentityAdmin(admin.ModelAdmin):
+    list_display = ('user', 'email', 'created_at', 'last_login_at')
+    search_fields = ('user__email', 'email', 'google_sub')
+    ordering = ('-created_at',)
+    raw_id_fields = ('user',)
+    # O vínculo é criado só pelo fluxo autenticado da API; aqui dá para consultar ou remover.
+    readonly_fields = ('user', 'google_sub', 'email', 'created_at', 'last_login_at')
