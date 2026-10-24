@@ -82,6 +82,7 @@ class CreateAndListTests(BrainstormTopicAPITestCase):
             'cycle': 1,
             'author_name': self.member.name,
             'status': 'open',
+            'context': 'Escolher o tema.',
         }
         self.assertEqual({key: item[key] for key in expected}, expected)
 

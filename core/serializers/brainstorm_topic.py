@@ -44,6 +44,7 @@ class BrainstormTopicListSerializer(ModelSerializer):
             'id',
             'project',
             'title',
+            'context',  # prévia no card da lista (o frontend corta o texto)
             'category',
             'status',
             'author',
@@ -64,7 +65,6 @@ class BrainstormTopicRetrieveSerializer(BrainstormTopicListSerializer):
     class Meta(BrainstormTopicListSerializer.Meta):
         fields = (
             *BrainstormTopicListSerializer.Meta.fields,
-            'context',
             'initial_suggestion',
             'archived_at',
             'current_decision',
