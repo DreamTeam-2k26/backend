@@ -93,7 +93,7 @@ class TaskViewSet(ModelViewSet):
             )
             .with_checklist_counts()
             .with_comment_count()
-            .select_related('column', 'assignee', 'created_by')
+            .select_related('column', 'assignee__profile_picture', 'created_by__profile_picture')
             .order_by('project_id', 'column__position', 'position', 'id')
         )
 

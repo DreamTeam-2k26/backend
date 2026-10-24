@@ -7,6 +7,7 @@ from rest_framework.serializers import CharField, ModelSerializer, SerializerMet
 
 from core.models import File, Membership
 from core.models.file import ALLOWED_FILE_TYPES, FILE_NAME_MAX, file_extension
+from core.serializers.user import profile_picture_url
 from uploader.helpers.files import get_content_type
 
 
@@ -17,6 +18,7 @@ def max_upload_size():
 class FileListSerializer(ModelSerializer):
     # O caminho no storage nunca sai na API: o conteúdo só é obtido pelo download autorizado.
     uploaded_by_name = CharField(source='uploaded_by.name', read_only=True, default=None)
+    uploaded_by_profile_picture = SerializerMethodField()
     download_url = SerializerMethodField()
 
     class Meta:
@@ -30,9 +32,13 @@ class FileListSerializer(ModelSerializer):
             'mime_type',
             'uploaded_by',
             'uploaded_by_name',
+            'uploaded_by_profile_picture',
             'uploaded_at',
             'download_url',
         )
+
+    def get_uploaded_by_profile_picture(self, file) -> str | None:
+        return profile_picture_url(file.uploaded_by)
 
     def get_download_url(self, file) -> str:
         return reverse('files-download', kwargs={'pk': file.pk})
