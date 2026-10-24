@@ -9,6 +9,5 @@ db.sqlite3
 staticfiles/
 .venv/
 media/
-requirements.txt
 .idea/
 .vscode/
