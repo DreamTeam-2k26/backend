@@ -1,6 +1,7 @@
 from django.db import transaction
 from django.db.models import Max
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema_field
 from rest_framework.exceptions import NotFound
 from rest_framework.serializers import (
     BooleanField,
@@ -9,10 +10,13 @@ from rest_framework.serializers import (
     ModelSerializer,
     PrimaryKeyRelatedField,
     Serializer,
+    SerializerMethodField,
     ValidationError,
 )
 
 from core.models import Column, Membership, Task, User
+from core.serializers.file import FileListSerializer
+from core.serializers.task_file import attached_files
 
 
 def end_of_column(column, exclude=None):
@@ -58,6 +62,7 @@ class TaskRetrieveSerializer(ModelSerializer):
     checklist_total = IntegerField(read_only=True)  # anotado por Task.objects.with_checklist_counts()
     checklist_done = IntegerField(read_only=True)
     comments_count = IntegerField(read_only=True)  # anotado por Task.objects.with_comment_count()
+    files = SerializerMethodField(help_text='Arquivos anexados (gerencie em /api/tasks/{id}/files/).')
 
     class Meta:
         model = Task
@@ -78,11 +83,16 @@ class TaskRetrieveSerializer(ModelSerializer):
             'checklist_total',
             'checklist_done',
             'comments_count',
+            'files',
             'created_by',
             'created_by_name',
             'created_at',
             'updated_at',
         )
+
+    @extend_schema_field(FileListSerializer(many=True))
+    def get_files(self, task):
+        return FileListSerializer(attached_files(task), many=True).data
 
 
 class TaskCreateUpdateSerializer(ModelSerializer):

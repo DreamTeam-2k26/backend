@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     'uploader',
     'core',
     'chat',
+    'calls',
 ]
 
 MIDDLEWARE = [

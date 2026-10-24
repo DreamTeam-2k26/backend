@@ -4,19 +4,23 @@ from django_filters.rest_framework import BooleanFilter, ChoiceFilter, DjangoFil
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.exceptions import NotFound
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from core.models import Column, Membership, Task
+from core.models import Column, Membership, Task, TaskFile
 from core.permissions import TaskPermission
 from core.serializers import (
+    FileListSerializer,
     TaskCreateUpdateSerializer,
+    TaskFileAttachSerializer,
     TaskListSerializer,
     TaskMoveSerializer,
     TaskRetrieveSerializer,
 )
+from core.serializers.task_file import attached_files
 
 
 class TaskFilter(FilterSet):
@@ -118,3 +122,38 @@ class TaskViewSet(ModelViewSet):
         serializer.is_valid(raise_exception=True)
         task = serializer.save()
         return Response(TaskListSerializer(serializer.board(task), many=True).data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        methods=['GET'],
+        summary='Arquivos anexados à tarefa (qualquer participante)',
+        responses={200: FileListSerializer(many=True)},
+    )
+    @extend_schema(
+        methods=['POST'],
+        summary='Anexar um arquivo do projeto à tarefa (não copia o arquivo)',
+        request=TaskFileAttachSerializer,
+        responses={201: FileListSerializer},
+    )
+    @action(detail=True, methods=['get', 'post'])
+    def files(self, request, pk=None):
+        task = self.get_object()
+        if request.method == 'GET':
+            return Response(FileListSerializer(attached_files(task), many=True).data, status=status.HTTP_200_OK)
+
+        serializer = TaskFileAttachSerializer(
+            data=request.data, context={**self.get_serializer_context(), 'task': task}
+        )
+        serializer.is_valid(raise_exception=True)
+        link = serializer.save()
+        return Response(FileListSerializer(link.file).data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        summary='Desvincular arquivo da tarefa (o arquivo continua no projeto)', request=None, responses={204: None}
+    )
+    @action(detail=True, methods=['delete'], url_path=r'files/(?P<file_id>\d+)', url_name='file')
+    def detach_file(self, request, pk=None, file_id=None):
+        task = self.get_object()
+        deleted, _ = TaskFile.objects.filter(task=task, file_id=file_id).delete()
+        if not deleted:
+            raise NotFound('Este arquivo não está anexado à tarefa.')
+        return Response(status=status.HTTP_204_NO_CONTENT)
