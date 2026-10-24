@@ -48,5 +48,6 @@ from .support_link import (
     SupportLinkRetrieveSerializer,
 )
 from .task import TaskCreateUpdateSerializer, TaskListSerializer, TaskMoveSerializer, TaskRetrieveSerializer
+from .task_file import TaskFileAttachSerializer
 from .token import GroupTokenObtainPairSerializer
 from .user import UserSerializer, UserRegistrationSerializer

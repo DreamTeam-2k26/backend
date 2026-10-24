@@ -10,4 +10,5 @@ from .meeting import Meeting
 from .project import Membership, Project
 from .support_link import SupportLink
 from .task import Task
+from .task_file import TaskFile
 from .user import User
