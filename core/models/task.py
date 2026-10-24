@@ -18,6 +18,10 @@ class TaskQuerySet(models.QuerySet):
             ),
         )
 
+    def with_comment_count(self):
+        """Anota comments_count (card do Kanban). distinct evita contar em dobro com outros joins."""
+        return self.annotate(comments_count=models.Count('comments', distinct=True))
+
 
 class Task(models.Model):
     """Tarefa do Kanban. Coluna e responsável são sempre do mesmo projeto (validado no serializer)."""
