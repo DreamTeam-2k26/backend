@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from rest_framework import status
 from rest_framework.test import APIClient
 
 from core.models import Column, Membership, Project
@@ -33,5 +34,15 @@ def project_url(project):
 def client_for(user):
     client = APIClient()
     client.force_authenticate(user)
+
+    return client
+
+
+def jwt_client(email, password='senha-forte-123'):
+    """Login de verdade (POST /api/token/) e cliente com o access no Authorization, como o frontend faz."""
+    tokens = APIClient().post('/api/token/', {'email': email, 'password': password})
+    assert tokens.status_code == status.HTTP_200_OK, tokens.data  # noqa: S101 - falha de setup do teste
+    client = APIClient()
+    client.credentials(HTTP_AUTHORIZATION=f'Bearer {tokens.data["access"]}')
 
     return client
