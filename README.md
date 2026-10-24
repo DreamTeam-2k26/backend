@@ -43,6 +43,7 @@ Todas estão documentadas em [`.env.example`](.env.example). Os principais compo
 
 - `DEBUG=False` exige `SECRET_KEY` e ativa o whitenoise com manifest (rode `python manage.py collectstatic`).
 - `CHAT_MAX_UPLOAD_MB` (padrão 10) limita o tamanho dos anexos do chat.
+- `CALL_MAX_PARTICIPANTS` (padrão 8) limita as pessoas por chamada; `CALL_ICE_SERVERS` (JSON) troca os servidores STUN/TURN das chamadas (veja [Chamadas](#chamadas)).
 - Sem `DATABASE_URL` usa SQLite; sem `REDIS_URL` usa a camada do Channels em memória; sem `CLOUDINARY_URL` grava uploads em `media/`.
 
 ## Estrutura
@@ -51,6 +52,7 @@ Todas estão documentadas em [`.env.example`](.env.example). Os principais compo
 - `core/` — usuário customizado (login por e-mail), grupos, permissões, JWT e middleware de WebSocket
 - `uploader/` — upload de imagens (JPEG/PNG) e documentos (PDF)
 - `chat/` — chat em tempo real em salas coletivas (REST + WebSocket); veja a seção [Chat](#chat)
+- `calls/` — chamadas de voz e vídeo dos projetos (REST + WebSocket de sinalização); veja a seção [Chamadas](#chamadas)
 
 ## Endpoints
 
@@ -106,6 +108,18 @@ Uma conexão por aba. Sem token válido a conexão é aceita e fechada com o có
 Se o servidor for encerrado de forma abrupta, rode `python manage.py reset_chat_presence` para zerar os contadores de presença.
 
 Limitações conhecidas: sem rate limiting; o token expirado não derruba um socket já aberto; anexos aceitam qualquer tipo até `CHAT_MAX_UPLOAD_MB`; ainda não há entidade de projeto, então as salas são independentes.
+
+## Chamadas
+
+App `calls/` (independente de `core.Meeting`, que guarda reuniões com link externo): chamadas de voz/vídeo dentro do projeto. A mídia vai direto entre os navegadores (WebRTC, malha entre todos); o servidor guarda o estado da chamada e repassa a sinalização. Só participantes do projeto veem e entram; quem não participa recebe 404.
+
+- **Quem pode:** dono e administradores iniciam, agendam, editam, encerram e removem; qualquer participante entra enquanto a chamada está em andamento.
+- **Estados:** `scheduled` (agendada) → `live` (em andamento) → `ended`. Só uma chamada `live` por projeto; ela encerra sozinha quando a última pessoa sai (ou, vazia, após 10 minutos).
+- **REST (`/api/calls/`):** `GET /` (filtros `?project=`, `?status=`), `POST /` (sem `scheduled_for` inicia agora; com ele, agenda), `GET|PATCH|DELETE /{id}/`, `POST /{id}/start/`, `POST /{id}/end/`, `GET /live/`, `GET /config/`.
+- **WebSocket `ws://host/ws/calls/?token=<access>`:** avisos `call.changed` das chamadas dos seus projetos.
+- **WebSocket `ws://host/ws/calls/<id>/?token=<access>`:** a sala. Servidor → cliente: `welcome`, `peer.joined`, `peer.left`, `peer.state`, `signal`, `call.ended`, `replaced`, `error`. Cliente → servidor: `{"action": "signal", "to": <id>, "data": {...}}`, `{"action": "state", "state": {...}}`, `{"action": "leave"}`. Entrar de outra aba assume o lugar da anterior.
+- **Rede:** por padrão usa STUN público do Google. Em redes restritas (firewall corporativo, NAT simétrico) a conexão direta pode falhar: configure um servidor TURN em `CALL_ICE_SERVERS`, por exemplo `[{"urls":"turn:turn.exemplo.com:3478","username":"u","credential":"s"}]`.
+- **Limitações:** malha limita o tamanho da chamada (padrão 8 pessoas); não grava nem transcreve; o aviso na hora marcada é do navegador aberto (não há tarefa agendada no servidor).
 
 ## Perfil do usuário
 
